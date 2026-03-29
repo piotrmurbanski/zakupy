@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  displayName  String       @map("display_name")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  ownedLists   ShoppingList[]
+  memberships  ListMember[]
+  createdItems ListItem[]
+
+  @@map("users")
+}
+
+model ShoppingList {
+  id          String       @id @default(cuid())
+  name        String
+  ownerUserId String       @map("owner_user_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  owner       User         @relation(fields: [ownerUserId], references: [id])
+  members     ListMember[]
+  items       ListItem[]
+
+  @@map("shopping_lists")
+}
+
+model ListMember {
+  id        String       @id @default(cuid())
+  listId    String       @map("list_id")
+  userId    String       @map("user_id")
+  role      ListRole
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  list      ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, userId])
+  @@map("list_members")
+}
+
+model ListItem {
+  id              String       @id @default(cuid())
+  listId          String       @map("list_id")
+  name            String
+  quantity        String?
+  unit            String?
+  isChecked       Boolean      @default(false) @map("is_checked")
+  sortOrder       Int          @default(0) @map("sort_order")
+  createdByUserId String       @map("created_by_user_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  list            ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdByUser   User         @relation(fields: [createdByUserId], references: [id])
+
+  @@map("list_items")
+}
+
+enum ListRole {
+  owner
+  editor
+}
