@@ -25,6 +25,7 @@ Jeśli nie masz lokalnego PostgreSQL, użyj Dockera. To jest teraz domyślna śc
 
 ```bash
 cd infra
+cp .env.example .env
 docker compose up --build -d postgres backend
 ```
 
@@ -62,8 +63,11 @@ Jeśli chcesz też reverse proxy:
 
 ```bash
 cd infra
+cp .env.example .env
 docker compose up --build -d
 ```
+
+W [infra/.env.example](/Users/piotr/sandbox/Zakupy/infra/.env.example) masz wszystkie zmienne do lokalnego uruchomienia, w tym `JWT_SECRET`. Ustaw tam własną wartość w `infra/.env`, zamiast trzymać sekret na sztywno w Compose.
 
 ### 2. Backend bez Dockera
 
