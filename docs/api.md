@@ -83,11 +83,107 @@ Response:
 
 ## Lists
 
-- `GET /lists`
-- `POST /lists`
-- `GET /lists/:listId`
-- `PATCH /lists/:listId`
-- `DELETE /lists/:listId`
+### `GET /lists`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "list_id",
+      "name": "Weekly groceries",
+      "ownerUserId": "user_id",
+      "createdAt": "2026-03-29T10:00:00.000Z",
+      "updatedAt": "2026-03-29T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /lists`
+
+Request body:
+
+```json
+{
+  "name": "Weekly groceries"
+}
+```
+
+Response:
+
+```json
+{
+  "list": {
+    "id": "list_id",
+    "name": "Weekly groceries",
+    "ownerUserId": "user_id",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+### `GET /lists/:listId`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Response:
+
+```json
+{
+  "list": {
+    "id": "list_id",
+    "name": "Weekly groceries",
+    "ownerUserId": "user_id",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+### `PATCH /lists/:listId`
+
+Request body:
+
+```json
+{
+  "name": "Updated groceries"
+}
+```
+
+Response:
+
+```json
+{
+  "list": {
+    "id": "list_id",
+    "name": "Updated groceries",
+    "ownerUserId": "user_id",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+### `DELETE /lists/:listId`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
 
 ## Members
 
