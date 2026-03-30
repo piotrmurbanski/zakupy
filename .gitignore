@@ -1,4 +1,5 @@
-backend/node_modules/
-backend/dist/
-backend/.env
-backend/.env.*
+**/node_modules/
+**/dist/
+**/.dart_tool/
+**/build/
+**/.DS_Store
