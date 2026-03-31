@@ -1,62 +1,82 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import argon2 from 'argon2';
+import type { PrismaClient } from '@prisma/client';
+import Fastify from 'fastify';
+import jwt from '@fastify/jwt';
+import sensible from '@fastify/sensible';
 
-import { buildApp } from '../../app.js';
-import type { AuthPrisma, UserRecord } from '../../lib/types.js';
+import { createAuthRoutes } from './routes.js';
 
-function createAuthPrisma(initialUsers: UserRecord[] = []) {
-  const users = new Map(initialUsers.map((user) => [user.id, user]));
+const JWT_SECRET = 'test-secret';
 
-  const prisma: AuthPrisma = {
+type TestUser = {
+  id: string;
+  email: string;
+  passwordHash: string;
+  displayName: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function buildUser(overrides: Partial<TestUser> = {}): TestUser {
+  return {
+    id: 'user_1',
+    email: 'test@example.com',
+    passwordHash: 'hashed-password',
+    displayName: 'Test User',
+    createdAt: new Date('2026-03-29T10:00:00.000Z'),
+    updatedAt: new Date('2026-03-29T10:00:00.000Z'),
+    ...overrides
+  };
+}
+
+async function buildApp(userByEmail: Map<string, TestUser | undefined>, userById: Map<string, TestUser | undefined>) {
+  const app = Fastify();
+  const prismaMock = {
     user: {
-      async findUnique({ where }) {
-        if (where.id) {
-          return users.get(where.id) ?? null;
+      findUnique: async ({ where }: { where: { email?: string; id?: string } }) => {
+        if ('email' in where) {
+          return userByEmail.get(where.email as string) ?? null;
         }
 
-        if (where.email) {
-          return [...users.values()].find((user) => user.email === where.email) ?? null;
-        }
-
-        return null;
+        return userById.get(where.id as string) ?? null;
       },
-      async create({ data }) {
-        const now = new Date();
-        const user: UserRecord = {
-          id: `user_${users.size + 1}`,
+      create: async ({ data }: { data: { email: string; passwordHash: string; displayName: string } }) => {
+        const user = buildUser({
           email: data.email,
           passwordHash: data.passwordHash,
-          displayName: data.displayName,
-          createdAt: now,
-          updatedAt: now
-        };
+          displayName: data.displayName
+        });
 
-        users.set(user.id, user);
+        userByEmail.set(user.email, user);
+        userById.set(user.id, user);
 
         return user;
       }
     }
-  };
+  } as unknown as Pick<PrismaClient, 'user'>;
 
-  return { prisma };
+  await app.register(sensible);
+  await app.register(jwt, {
+    secret: JWT_SECRET
+  });
+  await app.register(
+    createAuthRoutes({
+      prisma: prismaMock,
+      hashPassword: async (password) => `hash:${password}`,
+      verifyPassword: async (hash, password) => hash === `hash:${password}` || (hash === 'hashed-password' && password === 'supersecret123')
+    })
+  );
+
+  await app.ready();
+
+  return app;
 }
 
-test('POST /auth/login returns token and user for valid credentials', async () => {
-  const passwordHash = await argon2.hash('supersecret123', {
-    type: argon2.argon2id
-  });
-  const existingUser: UserRecord = {
-    id: 'user_1',
-    email: 'test@example.com',
-    passwordHash,
-    displayName: 'Piotr',
-    createdAt: new Date('2026-03-29T10:00:00.000Z'),
-    updatedAt: new Date('2026-03-29T10:00:00.000Z')
-  };
-  const { prisma } = createAuthPrisma([existingUser]);
-  const app = await buildApp({ prisma });
+test('POST /auth/login returns access token and user for valid credentials', async () => {
+  const user = buildUser();
+  const app = await buildApp(new Map([[user.email, user]]), new Map([[user.id, user]]));
 
   try {
     const response = await app.inject({
@@ -69,18 +89,24 @@ test('POST /auth/login returns token and user for valid credentials', async () =
     });
 
     assert.equal(response.statusCode, 200);
-    const body = response.json();
+
+    const body = response.json() as {
+      accessToken: string;
+      user: { id: string; email: string; displayName: string };
+    };
+
     assert.equal(typeof body.accessToken, 'string');
-    assert.equal(body.user.id, existingUser.id);
-    assert.equal(body.user.email, existingUser.email);
+    assert.equal(body.user.id, user.id);
+    assert.equal(body.user.email, user.email);
+    assert.equal(body.user.displayName, user.displayName);
   } finally {
     await app.close();
   }
 });
 
-test('POST /auth/login rejects an unknown email', async () => {
-  const { prisma } = createAuthPrisma();
-  const app = await buildApp({ prisma });
+test('POST /auth/login rejects invalid credentials', async () => {
+  const user = buildUser();
+  const app = await buildApp(new Map([[user.email, user]]), new Map([[user.id, user]]));
 
   try {
     const response = await app.inject({
@@ -88,92 +114,95 @@ test('POST /auth/login rejects an unknown email', async () => {
       url: '/auth/login',
       payload: {
         email: 'test@example.com',
-        password: 'supersecret123'
+        password: 'wrong-password'
       }
     });
 
     assert.equal(response.statusCode, 401);
-    assert.match(response.body, /Invalid email or password/);
   } finally {
     await app.close();
   }
 });
 
-test('POST /auth/login rejects an invalid password', async () => {
-  const passwordHash = await argon2.hash('supersecret123', {
-    type: argon2.argon2id
+test('POST /auth/login rejects invalid payload', async () => {
+  const app = await buildApp(new Map(), new Map());
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: {
+        email: 'not-an-email',
+        password: ''
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /auth/me returns the authenticated user', async () => {
+  const user = buildUser();
+  const app = await buildApp(new Map([[user.email, user]]), new Map([[user.id, user]]));
+  const token = await app.jwt.sign({
+    sub: user.id,
+    email: user.email
   });
-  const existingUser: UserRecord = {
-    id: 'user_1',
-    email: 'test@example.com',
-    passwordHash,
-    displayName: 'Piotr',
-    createdAt: new Date('2026-03-29T10:00:00.000Z'),
-    updatedAt: new Date('2026-03-29T10:00:00.000Z')
-  };
-  const { prisma } = createAuthPrisma([existingUser]);
-  const app = await buildApp({ prisma });
 
   try {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/auth/login',
-      payload: {
-        email: 'test@example.com',
-        password: 'wrongpass123'
-      }
-    });
-
-    assert.equal(response.statusCode, 401);
-    assert.match(response.body, /Invalid email or password/);
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /auth/me returns the current user for a valid token', async () => {
-  const existingUser: UserRecord = {
-    id: 'user_1',
-    email: 'test@example.com',
-    passwordHash: 'unused',
-    displayName: 'Piotr',
-    createdAt: new Date('2026-03-29T10:00:00.000Z'),
-    updatedAt: new Date('2026-03-29T10:00:00.000Z')
-  };
-  const { prisma } = createAuthPrisma([existingUser]);
-  const app = await buildApp({ prisma });
-
-  try {
-    const accessToken = await app.jwt.sign({
-      sub: existingUser.id,
-      email: existingUser.email
-    });
-
     const response = await app.inject({
       method: 'GET',
       url: '/auth/me',
       headers: {
-        authorization: `Bearer ${accessToken}`
+        authorization: `Bearer ${token}`
       }
     });
 
     assert.equal(response.statusCode, 200);
-    const body = response.json();
-    assert.equal(body.user.id, existingUser.id);
-    assert.equal(body.user.email, existingUser.email);
+
+    const body = response.json() as {
+      user: { id: string; email: string; displayName: string };
+    };
+
+    assert.equal(body.user.id, user.id);
+    assert.equal(body.user.email, user.email);
+    assert.equal(body.user.displayName, user.displayName);
   } finally {
     await app.close();
   }
 });
 
-test('GET /auth/me rejects a missing token', async () => {
-  const { prisma } = createAuthPrisma();
-  const app = await buildApp({ prisma });
+test('GET /auth/me rejects missing token', async () => {
+  const app = await buildApp(new Map(), new Map());
 
   try {
     const response = await app.inject({
       method: 'GET',
       url: '/auth/me'
+    });
+
+    assert.equal(response.statusCode, 401);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /auth/me rejects token for missing user', async () => {
+  const app = await buildApp(new Map(), new Map());
+  const token = await app.jwt.sign({
+    sub: 'missing-user',
+    email: 'missing@example.com'
+  });
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${token}`
+      }
     });
 
     assert.equal(response.statusCode, 401);

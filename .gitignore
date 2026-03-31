@@ -1,2 +1,5 @@
-backend/node_modules/
-backend/dist/
+**/node_modules/
+**/dist/
+**/.dart_tool/
+**/build/
+**/.DS_Store
