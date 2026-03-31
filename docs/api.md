@@ -33,6 +33,54 @@ Response:
 }
 ```
 
+### `POST /auth/login`
+
+Request body:
+
+```json
+{
+  "email": "test@example.com",
+  "password": "supersecret123"
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "jwt-token",
+  "user": {
+    "id": "user_id",
+    "email": "test@example.com",
+    "displayName": "Piotr",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+### `GET /auth/me`
+
+Headers:
+
+```text
+Authorization: Bearer <jwt-token>
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_id",
+    "email": "test@example.com",
+    "displayName": "Piotr",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
 ## Lists
 
 - `GET /lists`
