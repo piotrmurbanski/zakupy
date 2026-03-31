@@ -1,4 +1,4 @@
-import type { PrismaClient, ShoppingList, User } from '@prisma/client';
+import type { ListMember, PrismaClient, ShoppingList, User } from '@prisma/client';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -17,18 +17,38 @@ type ListResponse = {
   updatedAt: Date;
 };
 
+type MemberResponse = {
+  id: string;
+  listId: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+  };
+};
+
 type ListRepository = Pick<PrismaClient['shoppingList'], 'findMany' | 'findFirst' | 'create' | 'update' | 'delete'>;
+type ListMemberRepository = Pick<PrismaClient['listMember'], 'findUnique' | 'create' | 'delete'>;
 type UserRepository = Pick<PrismaClient['user'], 'findUnique'>;
 
 type ListRoutesDeps = {
   prisma: {
     shoppingList: ListRepository;
+    listMember: ListMemberRepository;
     user: UserRepository;
   };
 };
 
 const listBodySchema = z.object({
   name: z.string().trim().min(1).max(100)
+});
+
+const listMemberBodySchema = z.object({
+  email: z.string().trim().email().transform((value) => value.toLowerCase())
 });
 
 const defaultDeps = {
@@ -42,6 +62,26 @@ function toListResponse(list: Pick<ShoppingList, 'id' | 'name' | 'ownerUserId' |
     ownerUserId: list.ownerUserId,
     createdAt: list.createdAt,
     updatedAt: list.updatedAt
+  };
+}
+
+function toMemberResponse(
+  member: Pick<ListMember, 'id' | 'listId' | 'userId' | 'role' | 'createdAt' | 'updatedAt'> & {
+    user: Pick<User, 'id' | 'email' | 'displayName'>;
+  }
+): MemberResponse {
+  return {
+    id: member.id,
+    listId: member.listId,
+    userId: member.userId,
+    role: member.role,
+    createdAt: member.createdAt,
+    updatedAt: member.updatedAt,
+    user: {
+      id: member.user.id,
+      email: member.user.email,
+      displayName: member.user.displayName
+    }
   };
 }
 
@@ -86,6 +126,27 @@ async function findVisibleList(deps: ListRoutesDeps, userId: string, listId: str
       }
     }
   });
+}
+
+async function ensureOwnedVisibleList(
+  deps: ListRoutesDeps,
+  userId: string,
+  listId: string,
+  reply: FastifyReply
+) {
+  const list = await findVisibleList(deps, userId, listId);
+
+  if (!list) {
+    reply.notFound('List not found');
+    return null;
+  }
+
+  if (list.ownerUserId !== userId) {
+    reply.forbidden('Only the owner can manage list members');
+    return null;
+  }
+
+  return list;
 }
 
 export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPluginAsync {
@@ -224,6 +285,108 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
       await deps.prisma.shoppingList.delete({
         where: {
           id: list.id
+        }
+      });
+
+      return reply.code(204).send();
+    });
+
+    app.post('/lists/:listId/members', async (request, reply) => {
+      const user = await authenticateRequest(deps, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const { listId } = request.params as { listId: string };
+      const list = await ensureOwnedVisibleList(deps, user.id, listId, reply);
+
+      if (!list) {
+        return;
+      }
+
+      const body = parseBody(listMemberBodySchema, request.body);
+
+      if (!body) {
+        return reply.badRequest('Invalid request body');
+      }
+
+      const invitedUser = await deps.prisma.user.findUnique({
+        where: {
+          email: body.email
+        }
+      });
+
+      if (!invitedUser) {
+        return reply.notFound('User not found');
+      }
+
+      const existingMember = await deps.prisma.listMember.findUnique({
+        where: {
+          listId_userId: {
+            listId,
+            userId: invitedUser.id
+          }
+        }
+      });
+
+      if (existingMember) {
+        return reply.conflict('User is already a member of this list');
+      }
+
+      const member = await deps.prisma.listMember.create({
+        data: {
+          listId,
+          userId: invitedUser.id,
+          role: 'editor'
+        },
+        include: {
+          user: true
+        }
+      });
+
+      return reply.code(201).send({
+        member: toMemberResponse(member)
+      });
+    });
+
+    app.delete('/lists/:listId/members/:userId', async (request, reply) => {
+      const user = await authenticateRequest(deps, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const { listId, userId } = request.params as { listId: string; userId: string };
+      const list = await ensureOwnedVisibleList(deps, user.id, listId, reply);
+
+      if (!list) {
+        return;
+      }
+
+      if (userId === list.ownerUserId) {
+        return reply.badRequest('Owner cannot be removed from the list');
+      }
+
+      const existingMember = await deps.prisma.listMember.findUnique({
+        where: {
+          listId_userId: {
+            listId,
+            userId
+          }
+        }
+      });
+
+      if (!existingMember) {
+        return reply.notFound('Member not found');
+      }
+
+      await deps.prisma.listMember.delete({
+        where: {
+          listId_userId: {
+            listId,
+            userId
+          }
         }
       });
 
