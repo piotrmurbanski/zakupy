@@ -1,17 +1,10 @@
 import argon2 from 'argon2';
-import type { PrismaClient, User } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
+import { prisma } from '../../lib/prisma.js';
 import { toUserResponse } from './utils.js';
-
-type UserResponse = {
-  id: string;
-  email: string;
-  displayName: string;
-  createdAt: Date;
-  updatedAt: Date;
-};
 
 type AuthRoutesDeps = {
   prisma: Pick<PrismaClient, 'user'>;
@@ -43,16 +36,6 @@ const defaultDeps: AuthRoutesDeps = {
     }),
   verifyPassword: async (hash, password) => argon2.verify(hash, password)
 };
-
-function toUserResponse(user: Pick<User, 'id' | 'email' | 'displayName' | 'createdAt' | 'updatedAt'>): UserResponse {
-  return {
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
-  };
-}
 
 function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   const result = schema.safeParse(body);

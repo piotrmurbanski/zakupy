@@ -242,7 +242,122 @@ Notes:
 
 ## Items
 
-- `GET /lists/:listId/items`
-- `POST /lists/:listId/items`
-- `PATCH /lists/:listId/items/:itemId`
-- `DELETE /lists/:listId/items/:itemId`
+### `GET /lists/:listId/items`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "item_id",
+      "listId": "list_id",
+      "name": "Milk",
+      "quantity": "2",
+      "unit": "l",
+      "isChecked": false,
+      "sortOrder": 0,
+      "createdByUserId": "user_id",
+      "createdAt": "2026-03-29T10:00:00.000Z",
+      "updatedAt": "2026-03-29T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /lists/:listId/items`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Request body:
+
+```json
+{
+  "name": "Milk",
+  "quantity": "2",
+  "unit": "l"
+}
+```
+
+Response:
+
+```json
+{
+  "item": {
+    "id": "item_id",
+    "listId": "list_id",
+    "name": "Milk",
+    "quantity": "2",
+    "unit": "l",
+    "isChecked": false,
+    "sortOrder": 0,
+    "createdByUserId": "user_id",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+Notes:
+- the item is created with the next `sortOrder` value on the server
+- `quantity` and `unit` are optional
+
+### `PATCH /lists/:listId/items/:itemId`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Request body:
+
+```json
+{
+  "name": "Oat milk",
+  "quantity": "2",
+  "unit": "l",
+  "isChecked": true
+}
+```
+
+Response:
+
+```json
+{
+  "item": {
+    "id": "item_id",
+    "listId": "list_id",
+    "name": "Oat milk",
+    "quantity": "2",
+    "unit": "l",
+    "isChecked": true,
+    "sortOrder": 0,
+    "createdByUserId": "user_id",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+Notes:
+- send only the fields you want to change
+- empty update bodies return `400 Bad Request`
+
+### `DELETE /lists/:listId/items/:itemId`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
