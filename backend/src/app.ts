@@ -4,12 +4,18 @@ import jwt from '@fastify/jwt';
 import sensible from '@fastify/sensible';
 
 import { env } from './config/env.js';
+import { prisma } from './lib/prisma.js';
+import type { AuthPrisma } from './lib/types.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { itemRoutes } from './modules/items/routes.js';
 import { listRoutes } from './modules/lists/routes.js';
 
-export async function buildApp() {
+type BuildAppOptions = {
+  prisma?: AuthPrisma;
+};
+
+export async function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
     logger: true
   });
@@ -22,6 +28,7 @@ export async function buildApp() {
   await app.register(jwt, {
     secret: env.JWT_SECRET
   });
+  app.decorate('prisma', options.prisma ?? prisma);
 
   await app.register(healthRoutes);
   await app.register(authRoutes);

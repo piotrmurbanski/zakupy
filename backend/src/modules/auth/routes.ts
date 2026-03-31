@@ -3,7 +3,7 @@ import type { PrismaClient, User } from '@prisma/client';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
-import { prisma } from '../../lib/prisma.js';
+import { toUserResponse } from './utils.js';
 
 type UserResponse = {
   id: string;
