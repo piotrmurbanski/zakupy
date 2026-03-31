@@ -47,3 +47,15 @@ The MVP is successful when:
 - both users can add and check items
 - state remains consistent after refresh
 - the system survives backend restarts without losing data
+
+## Status
+
+Completed in this branch:
+- backend auth, lists, sharing, and item CRUD
+- item list/detail flow on mobile with create, edit, delete, and check-off actions
+- refresh-based sync after writes
+
+Remaining for the MVP:
+- mobile auth flow
+- list sharing UI on mobile
+- end-to-end testing on real devices
