@@ -403,6 +403,32 @@ class ShoppingListItem {
       isChecked: isChecked,
     );
   }
+
+  ShoppingListItem copyWith({
+    String? id,
+    String? listId,
+    String? name,
+    String? quantity,
+    String? unit,
+    bool? isChecked,
+    int? sortOrder,
+    String? createdByUserId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ShoppingListItem(
+      id: id ?? this.id,
+      listId: listId ?? this.listId,
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      isChecked: isChecked ?? this.isChecked,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 class ListMemberUser {

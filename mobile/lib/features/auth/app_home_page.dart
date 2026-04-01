@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/network/collection_sync.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
 import 'auth_session_store.dart';
@@ -93,8 +94,19 @@ class _AppHomePageState extends State<AppHomePage> {
     }
 
     await _runMutation(() async {
-      await _apiClient.createList(name);
-      await _loadLists(silent: true);
+      final createdList = await _apiClient.createList(name);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        upsertById(
+          target: _lists,
+          value: createdList,
+          idOf: (list) => list.id,
+        );
+      });
     });
   }
 
@@ -149,8 +161,8 @@ class _AppHomePageState extends State<AppHomePage> {
   }
 
   Future<void> _openList(ShoppingListSummary list) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final didMutate = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
         builder: (context) => ListDetailPage(
           apiClient: _apiClient,
           listId: list.id,
@@ -160,7 +172,9 @@ class _AppHomePageState extends State<AppHomePage> {
       ),
     );
 
-    await _loadLists(silent: true);
+    if (didMutate == true) {
+      await _loadLists(silent: true);
+    }
   }
 
   Future<String?> _showTextPrompt({
