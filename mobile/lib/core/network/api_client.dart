@@ -1,30 +1,37 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 
 import '../../features/auth/auth_models.dart';
+
+String normalizeBaseUrl(String baseUrl) {
+  return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+}
 
 class ApiClient {
   ApiClient({
     required String baseUrl,
     String accessToken = '',
     Dio? dio,
-  })  : _baseUrl = normalizeBaseUrl(baseUrl),
-        _dio = dio ?? Dio() {
-    _dio.options = _dio.options.copyWith(
-      baseUrl: _baseUrl,
-      headers: {
-        ..._dio.options.headers,
-        ..._buildHeaders(accessToken),
-      },
-    );
-  }
+  })  : baseUrl = normalizeBaseUrl(baseUrl),
+        accessToken = accessToken.trim(),
+        _dio = dio ??
+            Dio(
+              BaseOptions(
+                baseUrl: normalizeBaseUrl(baseUrl),
+                contentType: Headers.jsonContentType,
+                responseType: ResponseType.json,
+              ),
+            );
 
-  final String _baseUrl;
+  final String baseUrl;
+  final String accessToken;
   final Dio _dio;
 
-  ApiClient withAccessToken(String accessToken) {
+  ApiClient withAccessToken(String nextAccessToken) {
     return ApiClient(
-      baseUrl: _baseUrl,
-      accessToken: accessToken,
+      baseUrl: baseUrl,
+      accessToken: nextAccessToken,
     );
   }
 
@@ -32,148 +39,171 @@ class ApiClient {
     required String email,
     required String password,
     required String displayName,
-  }) async {
-    try {
+  }) {
+    return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/auth/register',
         data: {
-          'email': email,
+          'email': email.trim(),
           'password': password,
-          'displayName': displayName,
+          'displayName': displayName.trim(),
         },
       );
 
       return _authSessionFromResponse(response.data);
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
   Future<AuthSession> login({
     required String email,
     required String password,
-  }) async {
-    try {
+  }) {
+    return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/auth/login',
         data: {
-          'email': email,
+          'email': email.trim(),
           'password': password,
         },
       );
 
       return _authSessionFromResponse(response.data);
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<AuthUser> fetchCurrentUser() async {
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+  Future<AuthUser> fetchCurrentUser() {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/auth/me',
+        options: _authOptions(),
+      );
+
       return AuthUser.fromJson(_readObject(response.data, 'user'));
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<List<ShoppingListSummary>> fetchLists() async {
-    try {
-      final response = await _dio.get<Map<String, dynamic>>('/lists');
+  Future<List<ShoppingListSummary>> fetchLists() {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/lists',
+        options: _authOptions(),
+      );
       final items =
           (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
               .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListSummary.fromJson).toList(growable: false);
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<List<ShoppingListItem>> fetchItems(String listId) async {
-    try {
-      final response =
-          await _dio.get<Map<String, dynamic>>('/lists/$listId/items');
+  Future<ShoppingListSummary> createList(String name) {
+    return _guard(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/lists',
+        data: {
+          'name': name.trim(),
+        },
+        options: _authOptions(),
+      );
+
+      return ShoppingListSummary.fromJson(_readObject(response.data, 'list'));
+    });
+  }
+
+  Future<ListMember> shareList({
+    required String listId,
+    required String email,
+  }) {
+    return _guard(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/lists/$listId/members',
+        data: {
+          'email': email.trim(),
+        },
+        options: _authOptions(),
+      );
+
+      return ListMember.fromJson(_readObject(response.data, 'member'));
+    });
+  }
+
+  Future<ListMember> addListMember(String listId, String email) {
+    return shareList(listId: listId, email: email);
+  }
+
+  Future<List<ShoppingListItem>> fetchItems(String listId) {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/lists/$listId/items',
+        options: _authOptions(),
+      );
       final items =
           (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
               .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListItem.fromJson).toList(growable: false);
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<ShoppingListItem> createItem(String listId, ItemDraft draft) async {
-    try {
+  Future<ShoppingListItem> createItem(String listId, ItemDraft draft) {
+    return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists/$listId/items',
         data: draft.toJson(),
+        options: _authOptions(),
       );
 
       return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
   Future<ShoppingListItem> updateItem(
-    String listId,
-    String itemId,
-    ItemDraft draft,
-  ) async {
-    try {
+      String listId, String itemId, ItemDraft draft) {
+    return _guard(() async {
       final response = await _dio.patch<Map<String, dynamic>>(
         '/lists/$listId/items/$itemId',
         data: draft.toJson(),
+        options: _authOptions(),
       );
 
       return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<ListMember> addListMember(String listId, String email) async {
-    try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/lists/$listId/members',
-        data: {
-          'email': email,
-        },
+  Future<void> deleteItem(String listId, String itemId) {
+    return _guard(() async {
+      await _dio.delete<void>(
+        '/lists/$listId/items/$itemId',
+        options: _authOptions(),
       );
-
-      return ListMember.fromJson(_readObject(response.data, 'member'));
-    } on DioException catch (error) {
-      throw ApiException.fromDioException(error);
-    }
+    });
   }
 
-  Future<void> deleteItem(String listId, String itemId) async {
+  Options _authOptions() {
+    if (accessToken.isEmpty) {
+      return Options();
+    }
+
+    return Options(
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+  }
+
+  Future<T> _guard<T>(Future<T> Function() action) async {
     try {
-      await _dio.delete<void>('/lists/$listId/items/$itemId');
+      return await action();
     } on DioException catch (error) {
       throw ApiException.fromDioException(error);
     }
-  }
-
-  static Map<String, String> _buildHeaders(String accessToken) {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
-
-    if (accessToken.trim().isNotEmpty) {
-      headers['Authorization'] = 'Bearer $accessToken';
-    }
-
-    return headers;
   }
 
   static AuthSession _authSessionFromResponse(Map<String, dynamic>? payload) {
     final accessToken = payload?['accessToken'];
 
     if (accessToken is! String || accessToken.trim().isEmpty) {
-      throw StateError('Missing accessToken in API response');
+      throw const ApiException('Missing accessToken in API response');
     }
 
     return AuthSession(
@@ -183,9 +213,7 @@ class ApiClient {
   }
 
   static Map<String, dynamic> _readObject(
-    Map<String, dynamic>? payload,
-    String key,
-  ) {
+      Map<String, dynamic>? payload, String key) {
     final value = payload?[key];
 
     if (value is Map<String, dynamic>) {
@@ -196,63 +224,62 @@ class ApiClient {
       return Map<String, dynamic>.from(value);
     }
 
-    throw StateError('Missing $key in API response');
+    throw ApiException('Missing $key in API response');
   }
-}
-
-String normalizeBaseUrl(String baseUrl) {
-  return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
 }
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
 
+  factory ApiException.fromDioException(DioException error) {
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final message = data['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return ApiException(
+          message,
+          statusCode: error.response?.statusCode,
+        );
+      }
+    }
+
+    if (error.error is SocketException ||
+        error.type == DioExceptionType.connectionError) {
+      return const ApiException(
+        'Could not reach the backend. Use your Tailscale or Caddy address on real devices instead of localhost.',
+      );
+    }
+
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return const ApiException(
+        'The backend took too long to respond. Check that it is running and reachable over Tailscale.',
+      );
+    }
+
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 401) {
+      return const ApiException(
+        'Your session expired. Please log in again.',
+        statusCode: 401,
+      );
+    }
+
+    if (statusCode != null) {
+      return ApiException(
+        'Request failed with status $statusCode.',
+        statusCode: statusCode,
+      );
+    }
+
+    return const ApiException('Unexpected network error. Please try again.');
+  }
+
   final String message;
   final int? statusCode;
 
-  factory ApiException.fromDioException(DioException error) {
-    return ApiException(
-      _extractMessage(error),
-      statusCode: error.response?.statusCode,
-    );
-  }
-
-  static String _extractMessage(DioException error) {
-    final data = error.response?.data;
-
-    if (data is Map<String, dynamic>) {
-      final message = data['message'];
-
-      if (message is String && message.trim().isNotEmpty) {
-        return message;
-      }
-    }
-
-    if (data is Map) {
-      final dynamic message = data['message'];
-
-      if (message is String && message.trim().isNotEmpty) {
-        return message;
-      }
-    }
-
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-        return 'The server took too long to respond.';
-      case DioExceptionType.connectionError:
-        return 'Could not connect to the server.';
-      case DioExceptionType.cancel:
-        return 'The request was cancelled.';
-      case DioExceptionType.badCertificate:
-        return 'The server certificate is not trusted.';
-      case DioExceptionType.badResponse:
-        return 'The server returned an unexpected response.';
-      case DioExceptionType.unknown:
-        return error.message ?? 'Unexpected network error.';
-    }
-  }
+  bool get isUnauthorized => statusCode == 401;
 
   @override
   String toString() => message;
@@ -272,6 +299,8 @@ class ShoppingListSummary {
   final String ownerUserId;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  bool isOwnedBy(String userId) => ownerUserId == userId;
 
   factory ShoppingListSummary.fromJson(Map<String, dynamic> json) {
     return ShoppingListSummary(
@@ -397,18 +426,18 @@ class ListMember {
     required this.listId,
     required this.userId,
     required this.role,
-    required this.user,
     required this.createdAt,
     required this.updatedAt,
+    required this.user,
   });
 
   final String id;
   final String listId;
   final String userId;
   final String role;
-  final ListMemberUser user;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final ListMemberUser user;
 
   factory ListMember.fromJson(Map<String, dynamic> json) {
     return ListMember(
@@ -416,10 +445,21 @@ class ListMember {
       listId: json['listId'] as String,
       userId: json['userId'] as String,
       role: json['role'] as String,
-      user: ListMemberUser.fromJson(
-          Map<String, dynamic>.from(json['user'] as Map)),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      user: ListMemberUser.fromJson(_readMap(json['user'], 'user')),
     );
+  }
+
+  static Map<String, dynamic> _readMap(Object? value, String key) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    throw ApiException('Missing $key in API response');
   }
 }

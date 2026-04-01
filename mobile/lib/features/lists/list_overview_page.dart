@@ -71,6 +71,7 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         builder: (context) => ListDetailPage(
           apiClient: widget.apiClient,
           listId: list.id,
+          listName: list.name,
         ),
       ),
     );

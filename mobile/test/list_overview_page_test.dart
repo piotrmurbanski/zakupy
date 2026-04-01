@@ -32,7 +32,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Lista list_1'), findsOneWidget);
+    expect(find.text('Weekly groceries'), findsWidgets);
+    expect(find.text('list_1'), findsOneWidget);
     expect(find.text('No items yet. Add the first one.'), findsOneWidget);
   });
 
