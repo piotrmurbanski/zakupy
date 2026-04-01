@@ -4,17 +4,21 @@ import 'package:dio/dio.dart';
 
 import '../../features/auth/auth_models.dart';
 
+String normalizeBaseUrl(String baseUrl) {
+  return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+}
+
 class ApiClient {
   ApiClient({
     required String baseUrl,
     String accessToken = '',
     Dio? dio,
-  })  : baseUrl = _normalizeBaseUrl(baseUrl),
+  })  : baseUrl = normalizeBaseUrl(baseUrl),
         accessToken = accessToken.trim(),
         _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: _normalizeBaseUrl(baseUrl),
+                baseUrl: normalizeBaseUrl(baseUrl),
                 contentType: Headers.jsonContentType,
                 responseType: ResponseType.json,
               ),
@@ -87,9 +91,7 @@ class ApiClient {
       final items = (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
           .cast<Map<String, dynamic>>();
 
-      return items
-          .map(ShoppingListSummary.fromJson)
-          .toList(growable: false);
+      return items.map(ShoppingListSummary.fromJson).toList(growable: false);
     });
   }
 
@@ -190,46 +192,8 @@ class ApiClient {
     try {
       return await action();
     } on DioException catch (error) {
-      throw ApiException(
-        _describeDioError(error),
-        statusCode: error.response?.statusCode,
-      );
+      throw ApiException.fromDioException(error);
     }
-  }
-
-  static String _describeDioError(DioException error) {
-    final data = error.response?.data;
-    if (data is Map<String, dynamic>) {
-      final message = data['message'];
-      if (message is String && message.trim().isNotEmpty) {
-        return message;
-      }
-    }
-
-    if (error.error is SocketException || error.type == DioExceptionType.connectionError) {
-      return 'Could not reach the backend. Use your Tailscale or Caddy address on real devices instead of localhost.';
-    }
-
-    if (error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.sendTimeout) {
-      return 'The backend took too long to respond. Check that it is running and reachable over Tailscale.';
-    }
-
-    final statusCode = error.response?.statusCode;
-    if (statusCode == 401) {
-      return 'Your session expired. Please log in again.';
-    }
-
-    if (statusCode != null) {
-      return 'Request failed with status $statusCode.';
-    }
-
-    return 'Unexpected network error. Please try again.';
-  }
-
-  static String _normalizeBaseUrl(String baseUrl) {
-    return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
   }
 
   static AuthSession _authSessionFromResponse(Map<String, dynamic>? payload) {
@@ -262,6 +226,50 @@ class ApiClient {
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
+
+  factory ApiException.fromDioException(DioException error) {
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final message = data['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        return ApiException(
+          message,
+          statusCode: error.response?.statusCode,
+        );
+      }
+    }
+
+    if (error.error is SocketException || error.type == DioExceptionType.connectionError) {
+      return const ApiException(
+        'Could not reach the backend. Use your Tailscale or Caddy address on real devices instead of localhost.',
+      );
+    }
+
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return const ApiException(
+        'The backend took too long to respond. Check that it is running and reachable over Tailscale.',
+      );
+    }
+
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 401) {
+      return const ApiException(
+        'Your session expired. Please log in again.',
+        statusCode: 401,
+      );
+    }
+
+    if (statusCode != null) {
+      return ApiException(
+        'Request failed with status $statusCode.',
+        statusCode: statusCode,
+      );
+    }
+
+    return const ApiException('Unexpected network error. Please try again.');
+  }
 
   final String message;
   final int? statusCode;

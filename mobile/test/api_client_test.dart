@@ -28,6 +28,10 @@ class _RecordingAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('normalizeBaseUrl trims a trailing slash', () {
+    expect(normalizeBaseUrl('http://localhost:3000/'), 'http://localhost:3000');
+  });
+
   test('ShoppingListSummary.fromJson parses list payloads', () {
     final list = ShoppingListSummary.fromJson({
       'id': 'list_1',
@@ -78,14 +82,14 @@ void main() {
       sortOrder: 1,
       createdByUserId: 'user_1',
       createdAt: DateTime(2026, 3, 30, 10),
-      updatedAt: DateTime(2026, 3, 30, 10)
+      updatedAt: DateTime(2026, 3, 30, 10),
     );
 
     expect(item.toDraft().toJson(), {
       'name': 'Bread',
       'quantity': null,
       'unit': 'pcs',
-      'isChecked': false
+      'isChecked': false,
     });
   });
 
@@ -94,7 +98,7 @@ void main() {
       name: 'Milk',
       quantity: '1',
       unit: 'l',
-      isChecked: false
+      isChecked: false,
     );
 
     final updated = draft.copyWith(isChecked: true);
@@ -121,32 +125,32 @@ void main() {
             'email': 'test@example.com',
             'displayName': 'Test User',
             'createdAt': '2026-03-30T10:00:00.000Z',
-            'updatedAt': '2026-03-30T10:00:00.000Z'
-          }
+            'updatedAt': '2026-03-30T10:00:00.000Z',
+          },
         }),
         200,
         headers: {
-          Headers.contentTypeHeader: [Headers.jsonContentType]
-        }
-      )
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
     );
     final dio = Dio();
     dio.httpClientAdapter = adapter;
 
     final client = ApiClient(
       baseUrl: 'http://localhost:3000/',
-      dio: dio
+      dio: dio,
     );
     final session = await client.login(
       email: 'test@example.com',
-      password: 'supersecret123'
+      password: 'supersecret123',
     );
 
     expect(adapter.lastRequest?.path, '/auth/login');
     expect(adapter.lastRequest?.method, 'POST');
     expect(adapter.lastRequest?.data, {
       'email': 'test@example.com',
-      'password': 'supersecret123'
+      'password': 'supersecret123',
     });
     expect(adapter.lastRequest?.headers['Authorization'], isNull);
     expect(session.accessToken, 'jwt-token');
@@ -161,8 +165,8 @@ void main() {
         'email': 'test@example.com',
         'displayName': 'Test User',
         'createdAt': '2026-03-30T10:00:00.000Z',
-        'updatedAt': '2026-03-30T10:00:00.000Z'
-      }
+        'updatedAt': '2026-03-30T10:00:00.000Z',
+      },
     });
 
     expect(session.accessToken, 'jwt-token');

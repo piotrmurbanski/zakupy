@@ -8,15 +8,15 @@ class ListDetailPage extends StatefulWidget {
   const ListDetailPage({
     required this.apiClient,
     required this.listId,
-    required this.listName,
-    required this.onUnauthorized,
-    super.key
+    this.listName,
+    this.onUnauthorized,
+    super.key,
   });
 
   final ApiClient apiClient;
   final String listId;
-  final String listName;
-  final Future<void> Function() onUnauthorized;
+  final String? listName;
+  final Future<void> Function()? onUnauthorized;
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -69,8 +69,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         _errorMessage = null;
       });
     } on ApiException catch (error) {
-      if (error.isUnauthorized) {
-        await widget.onUnauthorized();
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
         return;
       }
 
@@ -90,7 +90,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return const _ItemEditorDialog();
-      }
+      },
     );
 
     if (draft == null) {
@@ -101,8 +101,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       await widget.apiClient.createItem(widget.listId, draft);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
-      if (error.isUnauthorized) {
-        await widget.onUnauthorized();
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
         return;
       }
 
@@ -111,7 +111,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not add item: ${error.message}'))
+        SnackBar(content: Text('Could not add item: ${error.message}')),
       );
     }
   }
@@ -121,7 +121,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return _ItemEditorDialog(initialItem: item);
-      }
+      },
     );
 
     if (draft == null) {
@@ -132,8 +132,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       await widget.apiClient.updateItem(widget.listId, item.id, draft);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
-      if (error.isUnauthorized) {
-        await widget.onUnauthorized();
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
         return;
       }
 
@@ -142,7 +142,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save item: ${error.message}'))
+        SnackBar(content: Text('Could not save item: ${error.message}')),
       );
     }
   }
@@ -156,12 +156,12 @@ class _ListDetailPageState extends State<ListDetailPage> {
       await widget.apiClient.updateItem(
         widget.listId,
         item.id,
-        item.toDraft().copyWith(isChecked: checked)
+        item.toDraft().copyWith(isChecked: checked),
       );
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
-      if (error.isUnauthorized) {
-        await widget.onUnauthorized();
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
         return;
       }
 
@@ -170,7 +170,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update item: ${error.message}'))
+        SnackBar(content: Text('Could not update item: ${error.message}')),
       );
     }
   }
@@ -185,15 +185,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')
+              child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete')
-            )
-          ]
+              child: const Text('Delete'),
+            ),
+          ],
         );
-      }
+      },
     );
 
     if (shouldDelete != true) {
@@ -204,8 +204,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       await widget.apiClient.deleteItem(widget.listId, item.id);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
-      if (error.isUnauthorized) {
-        await widget.onUnauthorized();
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
         return;
       }
 
@@ -214,41 +214,45 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not delete item: ${error.message}'))
+        SnackBar(content: Text('Could not delete item: ${error.message}')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.listName ?? 'List ${widget.listId}';
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.listName),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(24),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              widget.listId,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ),
+        title: Text(title),
+        bottom: widget.listName == null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(24),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    widget.listId,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ),
         actions: [
           IconButton(
             onPressed: () => _reloadItems(),
-            icon: const Icon(Icons.refresh)
-          )
-        ]
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addItem,
-        child: const Icon(Icons.add)
+        child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
         onRefresh: () => _reloadItems(silent: true),
-        child: _buildBody(context)
-      )
+        child: _buildBody(context),
+      ),
     );
   }
 
@@ -259,9 +263,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         children: const [
           SizedBox(height: 240),
           Center(
-            child: CircularProgressIndicator()
-          )
-        ]
+            child: CircularProgressIndicator(),
+          ),
+        ],
       );
     }
 
@@ -278,22 +282,22 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Could not load items',
-                  style: Theme.of(context).textTheme.titleMedium
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _errorMessage ?? 'Unknown error',
-                  textAlign: TextAlign.center
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _reloadItems(),
-                  child: const Text('Retry')
-                )
-              ]
-            )
-          )
-        ]
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
@@ -303,9 +307,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         children: const [
           SizedBox(height: 160),
           Center(
-            child: Text('No items yet. Add the first one.')
-          )
-        ]
+            child: Text('No items yet. Add the first one.'),
+          ),
+        ],
       );
     }
 
@@ -321,13 +325,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
           child: ListTile(
             leading: Checkbox(
               value: item.isChecked,
-              onChanged: (checked) => _toggleItem(item, checked)
+              onChanged: (checked) => _toggleItem(item, checked),
             ),
             title: Text(
               item.name,
               style: TextStyle(
-                decoration: item.isChecked ? TextDecoration.lineThrough : TextDecoration.none
-              )
+                decoration:
+                    item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+              ),
             ),
             subtitle: _buildSubtitle(item),
             trailing: Row(
@@ -335,17 +340,17 @@ class _ListDetailPageState extends State<ListDetailPage> {
               children: [
                 IconButton(
                   onPressed: () => _editItem(item),
-                  icon: const Icon(Icons.edit_outlined)
+                  icon: const Icon(Icons.edit_outlined),
                 ),
                 IconButton(
                   onPressed: () => _deleteItem(item),
-                  icon: const Icon(Icons.delete_outline)
-                )
-              ]
-            )
-          )
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+          ),
         );
-      }
+      },
     );
   }
 
@@ -388,7 +393,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialItem?.name ?? '');
-    _quantityController = TextEditingController(text: widget.initialItem?.quantity ?? '');
+    _quantityController =
+        TextEditingController(text: widget.initialItem?.quantity ?? '');
     _unitController = TextEditingController(text: widget.initialItem?.unit ?? '');
     _isChecked = widget.initialItem?.isChecked ?? false;
   }
@@ -411,8 +417,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
         name: _nameController.text.trim(),
         quantity: _normalizedOptionalText(_quantityController.text),
         unit: _normalizedOptionalText(_unitController.text),
-        isChecked: _isChecked
-      )
+        isChecked: _isChecked,
+      ),
     );
   }
 
@@ -450,18 +456,18 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   }
 
                   return null;
-                }
+                },
               ),
               TextFormField(
                 controller: _quantityController,
                 decoration: const InputDecoration(labelText: 'Quantity'),
-                textInputAction: TextInputAction.next
+                textInputAction: TextInputAction.next,
               ),
               TextFormField(
                 controller: _unitController,
                 decoration: const InputDecoration(labelText: 'Unit'),
                 textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _submit()
+                onFieldSubmitted: (_) => _submit(),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -471,22 +477,22 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   setState(() {
                     _isChecked = value;
                   });
-                }
-              )
-            ]
-          )
-        )
+                },
+              ),
+            ],
+          ),
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel')
+          child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('Save')
-        )
-      ]
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

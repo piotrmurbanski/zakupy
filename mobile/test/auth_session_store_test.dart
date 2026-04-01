@@ -23,7 +23,8 @@ void main() {
       session: buildSession(),
     );
 
-    final restored = StoredAuthSession.fromStorageValue(session.toStorageValue());
+    final restored =
+        StoredAuthSession.fromStorageValue(session.toStorageValue());
 
     expect(restored.baseUrl, 'http://localhost:3000');
     expect(restored.session.accessToken, 'token_123');

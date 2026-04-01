@@ -20,10 +20,7 @@ class StoredAuthSession {
   final AuthSession session;
 
   String toStorageValue() {
-    return jsonEncode({
-      'baseUrl': baseUrl,
-      'session': session.toJson()
-    });
+    return jsonEncode({'baseUrl': baseUrl, 'session': session.toJson()});
   }
 
   static StoredAuthSession fromStorageValue(String value) {
@@ -46,9 +43,8 @@ class StoredAuthSession {
     }
 
     return StoredAuthSession(
-      baseUrl: baseUrl,
-      session: AuthSession.fromJson(Map<String, dynamic>.from(session))
-    );
+        baseUrl: baseUrl,
+        session: AuthSession.fromJson(Map<String, dynamic>.from(session)));
   }
 }
 
