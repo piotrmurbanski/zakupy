@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/network/collection_sync.dart';
 
 class ListDetailPage extends StatefulWidget {
   const ListDetailPage({
@@ -24,9 +25,11 @@ class ListDetailPage extends StatefulWidget {
 
 class _ListDetailPageState extends State<ListDetailPage> {
   final List<ShoppingListItem> _items = <ShoppingListItem>[];
+  final Set<String> _pendingItemIds = <String>{};
 
   bool _isLoading = true;
   bool _isSharing = false;
+  bool _didMutateItems = false;
   String? _errorMessage;
   Timer? _refreshTimer;
 
@@ -99,8 +102,21 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     try {
-      await widget.apiClient.createItem(widget.listId, draft);
-      await _reloadItems(silent: true);
+      final createdItem = await widget.apiClient.createItem(widget.listId, draft);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateItems = true;
+        upsertById(
+          target: _items,
+          value: createdItem,
+          idOf: (item) => item.id,
+        );
+        _sortItems();
+      });
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -130,8 +146,25 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     try {
-      await widget.apiClient.updateItem(widget.listId, item.id, draft);
-      await _reloadItems(silent: true);
+      final updatedItem = await widget.apiClient.updateItem(
+        widget.listId,
+        item.id,
+        draft,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateItems = true;
+        upsertById(
+          target: _items,
+          value: updatedItem,
+          idOf: (entry) => entry.id,
+        );
+        _sortItems();
+      });
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -153,13 +186,38 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
+    if (existingIndex == -1) {
+      return;
+    }
+
+    final optimisticItem = _items[existingIndex].toDraft().copyWith(
+      isChecked: checked,
+    );
+    final previousItem = _items[existingIndex];
+
+    setState(() {
+      _pendingItemIds.add(item.id);
+      _items[existingIndex] = previousItem.copyWith(isChecked: checked);
+    });
+
     try {
-      await widget.apiClient.updateItem(
+      final updatedItem = await widget.apiClient.updateItem(
         widget.listId,
         item.id,
-        item.toDraft().copyWith(isChecked: checked),
+        optimisticItem,
       );
-      await _reloadItems(silent: true);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateItems = true;
+        _pendingItemIds.remove(item.id);
+        _items[existingIndex] = updatedItem;
+        _sortItems();
+      });
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -169,6 +227,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        _pendingItemIds.remove(item.id);
+        _items[existingIndex] = previousItem;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not update item: ${error.message}')),
@@ -203,7 +266,19 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     try {
       await widget.apiClient.deleteItem(widget.listId, item.id);
-      await _reloadItems(silent: true);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateItems = true;
+        removeById(
+          target: _items,
+          id: item.id,
+          idOf: (entry) => entry.id,
+        );
+      });
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -279,51 +354,133 @@ class _ListDetailPageState extends State<ListDetailPage> {
   Widget build(BuildContext context) {
     final title = widget.listName ?? 'List ${widget.listId}';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        bottom: widget.listName == null
-            ? null
-            : PreferredSize(
-                preferredSize: const Size.fromHeight(24),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    widget.listId,
-                    style: Theme.of(context).textTheme.bodySmall,
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.of(context).pop(_didMutateItems);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: () => Navigator.of(context).pop(_didMutateItems),
+          ),
+          title: Text(title),
+          bottom: widget.listName == null
+              ? null
+              : PreferredSize(
+                  preferredSize: const Size.fromHeight(24),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      widget.listId,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
                 ),
-              ),
-        actions: [
-          IconButton(
-            onPressed: () => _reloadItems(),
-            icon: const Icon(Icons.refresh),
-          ),
-          PopupMenuButton<_ListAction>(
-            onSelected: (action) {
-              if (action == _ListAction.share) {
-                _shareList();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<_ListAction>(
-                value: _ListAction.share,
-                enabled: !_isSharing,
-                child: const Text('Share list'),
-              ),
-            ],
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addItem,
-        child: const Icon(Icons.add),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => _reloadItems(silent: true),
-        child: _buildBody(context),
+          actions: [
+            IconButton(
+              onPressed: () => _reloadItems(),
+              icon: const Icon(Icons.refresh),
+            ),
+            PopupMenuButton<_ListAction>(
+              onSelected: (action) {
+                if (action == _ListAction.share) {
+                  _shareList();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<_ListAction>(
+                  value: _ListAction.share,
+                  enabled: !_isSharing,
+                  child: const Text('Share list'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _addItem,
+          child: const Icon(Icons.add),
+        ),
+        body: RefreshIndicator(
+          onRefresh: () => _reloadItems(silent: true),
+          child: _buildBody(context),
+        ),
       ),
     );
+  }
+
+  bool _isItemPending(String itemId) {
+    return _pendingItemIds.contains(itemId);
+  }
+
+  Future<void> _onToggleRequested(ShoppingListItem item, bool? checked) async {
+    if (_isItemPending(item.id)) {
+      return;
+    }
+
+    await _toggleItem(item, checked);
+  }
+
+  Future<void> _onEditRequested(ShoppingListItem item) async {
+    if (_isItemPending(item.id)) {
+      return;
+    }
+
+    await _editItem(item);
+  }
+
+  Future<void> _onDeleteRequested(ShoppingListItem item) async {
+    if (_isItemPending(item.id)) {
+      return;
+    }
+
+    await _deleteItem(item);
+  }
+
+  Widget _buildItemTile(ShoppingListItem item) {
+    final isPending = _isItemPending(item.id);
+
+    return Card(
+      child: ListTile(
+        leading: Checkbox(
+          value: item.isChecked,
+          onChanged: isPending ? null : (checked) => _onToggleRequested(item, checked),
+        ),
+        title: Text(
+          item.name,
+          style: TextStyle(
+            decoration:
+                item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+          ),
+        ),
+        subtitle: _buildSubtitle(item),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: isPending ? null : () => _onEditRequested(item),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              onPressed: isPending ? null : () => _onDeleteRequested(item),
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _sortItems() {
+    _items.sort((left, right) {
+      final byOrder = left.sortOrder.compareTo(right.sortOrder);
+      if (byOrder != 0) {
+        return byOrder;
+      }
+
+      return left.createdAt.compareTo(right.createdAt);
+    });
   }
 
   Widget _buildBody(BuildContext context) {
@@ -391,35 +548,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       itemBuilder: (context, index) {
         final item = _items[index];
 
-        return Card(
-          child: ListTile(
-            leading: Checkbox(
-              value: item.isChecked,
-              onChanged: (checked) => _toggleItem(item, checked),
-            ),
-            title: Text(
-              item.name,
-              style: TextStyle(
-                decoration:
-                    item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
-              ),
-            ),
-            subtitle: _buildSubtitle(item),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  onPressed: () => _editItem(item),
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                IconButton(
-                  onPressed: () => _deleteItem(item),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-          ),
-        );
+        return _buildItemTile(item);
       },
     );
   }
