@@ -2,13 +2,15 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../../features/auth/auth_models.dart';
+
 class ApiClient {
   ApiClient({
     required String baseUrl,
-    String? accessToken,
+    String accessToken = '',
     Dio? dio,
   })  : baseUrl = _normalizeBaseUrl(baseUrl),
-        accessToken = _normalizeToken(accessToken),
+        accessToken = accessToken.trim(),
         _dio = dio ??
             Dio(
               BaseOptions(
@@ -19,10 +21,17 @@ class ApiClient {
             );
 
   final String baseUrl;
-  final String? accessToken;
+  final String accessToken;
   final Dio _dio;
 
-  Future<AuthResponse> register({
+  ApiClient withAccessToken(String nextAccessToken) {
+    return ApiClient(
+      baseUrl: baseUrl,
+      accessToken: nextAccessToken,
+    );
+  }
+
+  Future<AuthSession> register({
     required String email,
     required String password,
     required String displayName,
@@ -37,11 +46,11 @@ class ApiClient {
         },
       );
 
-      return AuthResponse.fromJson(_readMap(response.data));
+      return _authSessionFromResponse(response.data);
     });
   }
 
-  Future<AuthResponse> login({
+  Future<AuthSession> login({
     required String email,
     required String password,
   }) {
@@ -54,18 +63,18 @@ class ApiClient {
         },
       );
 
-      return AuthResponse.fromJson(_readMap(response.data));
+      return _authSessionFromResponse(response.data);
     });
   }
 
-  Future<UserProfile> fetchCurrentUser() {
+  Future<AuthUser> fetchCurrentUser() {
     return _guard(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/auth/me',
         options: _authOptions(),
       );
 
-      return UserProfile.fromJson(_readObject(response.data, 'user'));
+      return AuthUser.fromJson(_readObject(response.data, 'user'));
     });
   }
 
@@ -98,7 +107,7 @@ class ApiClient {
     });
   }
 
-  Future<ListMembership> shareList({
+  Future<ListMember> shareList({
     required String listId,
     required String email,
   }) {
@@ -111,8 +120,12 @@ class ApiClient {
         options: _authOptions(),
       );
 
-      return ListMembership.fromJson(_readObject(response.data, 'member'));
+      return ListMember.fromJson(_readObject(response.data, 'member'));
     });
+  }
+
+  Future<ListMember> addListMember(String listId, String email) {
+    return shareList(listId: listId, email: email);
   }
 
   Future<List<ShoppingListItem>> fetchItems(String listId) {
@@ -162,15 +175,13 @@ class ApiClient {
   }
 
   Options _authOptions() {
-    final token = accessToken;
-
-    if (token == null) {
+    if (accessToken.isEmpty) {
       return Options();
     }
 
     return Options(
       headers: {
-        'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $accessToken',
       },
     );
   }
@@ -221,22 +232,17 @@ class ApiClient {
     return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
   }
 
-  static String? _normalizeToken(String? token) {
-    final trimmed = token?.trim();
+  static AuthSession _authSessionFromResponse(Map<String, dynamic>? payload) {
+    final accessToken = payload?['accessToken'];
 
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
+    if (accessToken is! String || accessToken.trim().isEmpty) {
+      throw const ApiException('Missing accessToken in API response');
     }
 
-    return trimmed;
-  }
-
-  static Map<String, dynamic> _readMap(Map<String, dynamic>? payload) {
-    if (payload != null) {
-      return payload;
-    }
-
-    throw const ApiException('Missing response body');
+    return AuthSession(
+      accessToken: accessToken,
+      user: AuthUser.fromJson(_readObject(payload, 'user')),
+    );
   }
 
   static Map<String, dynamic> _readObject(Map<String, dynamic>? payload, String key) {
@@ -266,59 +272,6 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-class AuthResponse {
-  const AuthResponse({
-    required this.accessToken,
-    required this.user,
-  });
-
-  final String accessToken;
-  final UserProfile user;
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      accessToken: json['accessToken'] as String,
-      user: UserProfile.fromJson(ApiClient._readObject(json, 'user')),
-    );
-  }
-}
-
-class UserProfile {
-  const UserProfile({
-    required this.id,
-    required this.email,
-    required this.displayName,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  final String id;
-  final String email;
-  final String displayName;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  factory UserProfile.fromJson(Map<String, dynamic> json) {
-    return UserProfile(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'email': email,
-      'displayName': displayName,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
-  }
-}
-
 class ShoppingListSummary {
   const ShoppingListSummary({
     required this.id,
@@ -343,58 +296,6 @@ class ShoppingListSummary {
       ownerUserId: json['ownerUserId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
-    );
-  }
-}
-
-class ListMembership {
-  const ListMembership({
-    required this.id,
-    required this.listId,
-    required this.userId,
-    required this.role,
-    required this.user,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  final String id;
-  final String listId;
-  final String userId;
-  final String role;
-  final UserIdentity user;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  factory ListMembership.fromJson(Map<String, dynamic> json) {
-    return ListMembership(
-      id: json['id'] as String,
-      listId: json['listId'] as String,
-      userId: json['userId'] as String,
-      role: json['role'] as String,
-      user: UserIdentity.fromJson(ApiClient._readObject(json, 'user')),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-    );
-  }
-}
-
-class UserIdentity {
-  const UserIdentity({
-    required this.id,
-    required this.email,
-    required this.displayName,
-  });
-
-  final String id;
-  final String email;
-  final String displayName;
-
-  factory UserIdentity.fromJson(Map<String, dynamic> json) {
-    return UserIdentity(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String,
     );
   }
 }
@@ -483,5 +384,69 @@ class ShoppingListItem {
       unit: unit,
       isChecked: isChecked,
     );
+  }
+}
+
+class ListMemberUser {
+  const ListMemberUser({
+    required this.id,
+    required this.email,
+    required this.displayName,
+  });
+
+  final String id;
+  final String email;
+  final String displayName;
+
+  factory ListMemberUser.fromJson(Map<String, dynamic> json) {
+    return ListMemberUser(
+      id: json['id'] as String,
+      email: json['email'] as String,
+      displayName: json['displayName'] as String,
+    );
+  }
+}
+
+class ListMember {
+  const ListMember({
+    required this.id,
+    required this.listId,
+    required this.userId,
+    required this.role,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.user,
+  });
+
+  final String id;
+  final String listId;
+  final String userId;
+  final String role;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final ListMemberUser user;
+
+  factory ListMember.fromJson(Map<String, dynamic> json) {
+    return ListMember(
+      id: json['id'] as String,
+      listId: json['listId'] as String,
+      userId: json['userId'] as String,
+      role: json['role'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      user: ListMemberUser.fromJson(_readMap(json['user'], 'user')),
+    );
+  }
+
+  static Map<String, dynamic> _readMap(Object? value, String key) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    throw ApiException('Missing $key in API response');
   }
 }

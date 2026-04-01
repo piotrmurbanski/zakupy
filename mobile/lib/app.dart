@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'core/network/api_client.dart';
-import 'core/network/session_store.dart';
+import 'features/auth/auth_models.dart';
+import 'features/auth/auth_session_store.dart';
 import 'features/lists/list_detail_page.dart';
 
 const _defaultApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
@@ -30,10 +31,10 @@ class _AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<_AppShell> {
-  final SessionStore _sessionStore = SessionStore();
+  final SecureAuthSessionStore _sessionStore = SecureAuthSessionStore();
 
   bool _isLoading = true;
-  AppSession? _session;
+  StoredAuthSession? _storedSession;
   String _lastBaseUrl = _defaultApiBaseUrl;
 
   @override
@@ -43,65 +44,104 @@ class _AppShellState extends State<_AppShell> {
   }
 
   Future<void> _restoreSession() async {
-    final stored = await _sessionStore.read();
+    try {
+      final stored = await _sessionStore.read();
+      final baseUrl = stored?.baseUrl ?? _defaultApiBaseUrl;
 
-    if (!mounted) {
-      return;
+      if (stored == null) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _storedSession = null;
+          _lastBaseUrl = baseUrl;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final apiClient = ApiClient(
+        baseUrl: stored.baseUrl,
+        accessToken: stored.session.accessToken,
+      );
+      final currentUser = await apiClient.fetchCurrentUser();
+      final refreshed = StoredAuthSession(
+        baseUrl: stored.baseUrl,
+        session: AuthSession(
+          accessToken: stored.session.accessToken,
+          user: currentUser,
+        ),
+      );
+
+      await _sessionStore.write(refreshed);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _storedSession = refreshed;
+        _lastBaseUrl = refreshed.baseUrl;
+        _isLoading = false;
+      });
+    } catch (_) {
+      await _sessionStore.clear();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _storedSession = null;
+        _isLoading = false;
+      });
     }
-
-    setState(() {
-      _session = stored.session;
-      _lastBaseUrl = (stored.session?.baseUrl ?? stored.baseUrl ?? _defaultApiBaseUrl).trim();
-      _isLoading = false;
-    });
   }
 
   Future<void> _finishAuthentication({
     required String baseUrl,
-    required AuthResponse auth,
+    required AuthSession session,
   }) async {
-    final session = AppSession(
+    final storedSession = StoredAuthSession(
       baseUrl: baseUrl,
-      accessToken: auth.accessToken,
-      user: auth.user,
+      session: session,
     );
 
-    await _sessionStore.writeSession(session);
+    await _sessionStore.write(storedSession);
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _session = session;
-      _lastBaseUrl = session.baseUrl;
+      _storedSession = storedSession;
+      _lastBaseUrl = storedSession.baseUrl;
     });
   }
 
-  Future<void> _updateSession(AppSession session) async {
-    await _sessionStore.writeSession(session);
+  Future<void> _updateSession(StoredAuthSession storedSession) async {
+    await _sessionStore.write(storedSession);
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _session = session;
-      _lastBaseUrl = session.baseUrl;
+      _storedSession = storedSession;
+      _lastBaseUrl = storedSession.baseUrl;
     });
   }
 
   Future<void> _logout() async {
-    final baseUrl = _session?.baseUrl ?? _lastBaseUrl;
-    await _sessionStore.clearSession(preserveBaseUrl: baseUrl);
+    await _sessionStore.clear();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _session = null;
-      _lastBaseUrl = baseUrl;
+      _storedSession = null;
     });
   }
 
@@ -113,8 +153,8 @@ class _AppShellState extends State<_AppShell> {
       );
     }
 
-    final session = _session;
-    if (session == null) {
+    final storedSession = _storedSession;
+    if (storedSession == null) {
       return _AuthPage(
         initialBaseUrl: _lastBaseUrl,
         onAuthenticated: _finishAuthentication,
@@ -122,7 +162,7 @@ class _AppShellState extends State<_AppShell> {
     }
 
     return _ListsHomePage(
-      session: session,
+      session: storedSession,
       onSessionChanged: _updateSession,
       onLogout: _logout,
     );
@@ -138,7 +178,7 @@ class _AuthPage extends StatefulWidget {
   final String initialBaseUrl;
   final Future<void> Function({
     required String baseUrl,
-    required AuthResponse auth,
+    required AuthSession session,
   }) onAuthenticated;
 
   @override
@@ -191,14 +231,14 @@ class _AuthPageState extends State<_AuthPage> with SingleTickerProviderStateMixi
 
     await _submit(() async {
       final client = ApiClient(baseUrl: _baseUrlController.text);
-      final auth = await client.login(
+      final session = await client.login(
         email: _loginEmailController.text,
         password: _loginPasswordController.text,
       );
 
       await widget.onAuthenticated(
         baseUrl: client.baseUrl,
-        auth: auth,
+        session: session,
       );
     });
   }
@@ -210,7 +250,7 @@ class _AuthPageState extends State<_AuthPage> with SingleTickerProviderStateMixi
 
     await _submit(() async {
       final client = ApiClient(baseUrl: _baseUrlController.text);
-      final auth = await client.register(
+      final session = await client.register(
         email: _registerEmailController.text,
         password: _registerPasswordController.text,
         displayName: _registerNameController.text,
@@ -218,14 +258,13 @@ class _AuthPageState extends State<_AuthPage> with SingleTickerProviderStateMixi
 
       await widget.onAuthenticated(
         baseUrl: client.baseUrl,
-        auth: auth,
+        session: session,
       );
     });
   }
 
   bool _validateBaseUrl() {
     final validation = _validateApiBaseUrl(_baseUrlController.text);
-
     if (validation == null) {
       return true;
     }
@@ -280,7 +319,7 @@ class _AuthPageState extends State<_AuthPage> with SingleTickerProviderStateMixi
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primaryContainer.withOpacity(0.9),
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.9),
               theme.colorScheme.surface,
             ],
           ),
@@ -442,8 +481,8 @@ class _ListsHomePage extends StatefulWidget {
     required this.onLogout,
   });
 
-  final AppSession session;
-  final Future<void> Function(AppSession session) onSessionChanged;
+  final StoredAuthSession session;
+  final Future<void> Function(StoredAuthSession session) onSessionChanged;
   final Future<void> Function() onLogout;
 
   @override
@@ -470,16 +509,16 @@ class _ListsHomePageState extends State<_ListsHomePage> {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.session.baseUrl != widget.session.baseUrl ||
-        oldWidget.session.accessToken != widget.session.accessToken) {
+        oldWidget.session.session.accessToken != widget.session.session.accessToken) {
       _apiClient = _buildClient(widget.session);
       _loadLists();
     }
   }
 
-  ApiClient _buildClient(AppSession session) {
+  ApiClient _buildClient(StoredAuthSession session) {
     return ApiClient(
       baseUrl: session.baseUrl,
-      accessToken: session.accessToken,
+      accessToken: session.session.accessToken,
     );
   }
 
@@ -499,8 +538,14 @@ class _ListsHomePageState extends State<_ListsHomePage> {
         return;
       }
 
-      final session = widget.session.copyWith(user: user);
-      await widget.onSessionChanged(session);
+      final refreshedSession = StoredAuthSession(
+        baseUrl: widget.session.baseUrl,
+        session: AuthSession(
+          accessToken: widget.session.session.accessToken,
+          user: user,
+        ),
+      );
+      await widget.onSessionChanged(refreshedSession);
 
       if (!mounted) {
         return;
@@ -600,8 +645,10 @@ class _ListsHomePageState extends State<_ListsHomePage> {
       return;
     }
 
-    final updatedSession = widget.session.copyWith(
-      baseUrl: ApiClient(baseUrl: updatedBaseUrl.trim()).baseUrl,
+    final normalizedBaseUrl = ApiClient(baseUrl: updatedBaseUrl.trim()).baseUrl;
+    final updatedSession = StoredAuthSession(
+      baseUrl: normalizedBaseUrl,
+      session: widget.session.session,
     );
     await widget.onSessionChanged(updatedSession);
 
@@ -713,6 +760,8 @@ class _ListsHomePageState extends State<_ListsHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = widget.session.session.user.id;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your lists'),
@@ -789,11 +838,9 @@ class _ListsHomePageState extends State<_ListsHomePage> {
                       onTap: () => _openList(list),
                       title: Text(list.name),
                       subtitle: Text(
-                        list.isOwnedBy(widget.session.user.id)
-                            ? 'Owner'
-                            : 'Shared with you',
+                        list.isOwnedBy(currentUserId) ? 'Owner' : 'Shared with you',
                       ),
-                      trailing: list.isOwnedBy(widget.session.user.id)
+                      trailing: list.isOwnedBy(currentUserId)
                           ? IconButton(
                               tooltip: 'Share list',
                               onPressed: _isUpdating ? null : () => _shareList(list),
@@ -817,7 +864,7 @@ class _AccountCard extends StatelessWidget {
     required this.onEditBackendUrl,
   });
 
-  final AppSession session;
+  final StoredAuthSession session;
   final VoidCallback onEditBackendUrl;
 
   @override
@@ -830,9 +877,9 @@ class _AccountCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(session.user.displayName, style: theme.textTheme.titleMedium),
+            Text(session.session.user.displayName, style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text(session.user.email),
+            Text(session.session.user.email),
             const SizedBox(height: 12),
             Text(
               session.baseUrl,

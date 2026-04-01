@@ -52,10 +52,10 @@ The MVP is successful when:
 
 Completed in this branch:
 - backend auth, lists, sharing, and item CRUD
+- mobile auth foundation with session persistence
 - item list/detail flow on mobile with create, edit, delete, and check-off actions
 - refresh-based sync after writes
 
 Remaining for the MVP:
-- mobile auth flow
 - list sharing UI on mobile
 - end-to-end testing on real devices
