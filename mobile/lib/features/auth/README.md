@@ -1,15 +1,6 @@
 # Auth feature
 
-The mobile app authenticates against the backend using:
-
-- `POST /auth/login`
-- `POST /auth/register`
-- `GET /auth/me`
-
-Session data is stored with `flutter_secure_storage` as a JSON payload containing:
-
-- the backend `baseUrl`
-- the access token
-- the authenticated user profile
-
-The launcher restores this session on startup and clears it if the token is no longer valid.
+Implemented flow:
+- login and registration against the Fastify API
+- JWT session persistence in `flutter_secure_storage`
+- auto-restore of a saved session on app launch

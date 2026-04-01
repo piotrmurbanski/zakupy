@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/network/api_client.dart';
+import 'features/auth/auth_models.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/lists/list_detail_page.dart';
 
@@ -13,23 +14,23 @@ class ZakupyApp extends StatelessWidget {
       title: 'Zakupy',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6B3B)),
-        useMaterial3: true
+        useMaterial3: true,
       ),
-      home: const _AuthGatePage()
+      home: const _LauncherPage(),
     );
   }
 }
 
 enum _AuthMode { login, register }
 
-class _AuthGatePage extends StatefulWidget {
-  const _AuthGatePage();
+class _LauncherPage extends StatefulWidget {
+  const _LauncherPage();
 
   @override
-  State<_AuthGatePage> createState() => _AuthGatePageState();
+  State<_LauncherPage> createState() => _LauncherPageState();
 }
 
-class _AuthGatePageState extends State<_AuthGatePage> {
+class _LauncherPageState extends State<_LauncherPage> {
   final _authFormKey = GlobalKey<FormState>();
   final _listFormKey = GlobalKey<FormState>();
   final _sessionStore = SecureAuthSessionStore();
@@ -40,7 +41,7 @@ class _AuthGatePageState extends State<_AuthGatePage> {
   late final TextEditingController _listIdController;
 
   _AuthMode _authMode = _AuthMode.login;
-  StoredAuthSession? _session;
+  StoredAuthSession? _storedSession;
   bool _isLoadingSession = true;
   bool _isSubmittingAuth = false;
   bool _isOpeningList = false;
@@ -77,7 +78,7 @@ class _AuthGatePageState extends State<_AuthGatePage> {
         }
 
         setState(() {
-          _session = null;
+          _storedSession = null;
           _isLoadingSession = false;
         });
         return;
@@ -87,16 +88,15 @@ class _AuthGatePageState extends State<_AuthGatePage> {
 
       final apiClient = ApiClient(
         baseUrl: storedSession.baseUrl,
-        accessToken: storedSession.session.accessToken
+        accessToken: storedSession.session.accessToken,
       );
       final currentUser = await apiClient.fetchCurrentUser();
-
       final refreshedSession = StoredAuthSession(
         baseUrl: storedSession.baseUrl,
         session: AuthSession(
           accessToken: storedSession.session.accessToken,
-          user: currentUser
-        )
+          user: currentUser,
+        ),
       );
 
       await _sessionStore.write(refreshedSession);
@@ -106,7 +106,7 @@ class _AuthGatePageState extends State<_AuthGatePage> {
       }
 
       setState(() {
-        _session = refreshedSession;
+        _storedSession = refreshedSession;
         _isLoadingSession = false;
       });
     } catch (_) {
@@ -117,7 +117,7 @@ class _AuthGatePageState extends State<_AuthGatePage> {
       }
 
       setState(() {
-        _session = null;
+        _storedSession = null;
         _isLoadingSession = false;
       });
     }
@@ -143,18 +143,18 @@ class _AuthGatePageState extends State<_AuthGatePage> {
       final session = switch (_authMode) {
         _AuthMode.login => await apiClient.login(
           email: email,
-          password: password
+          password: password,
         ),
         _AuthMode.register => await apiClient.register(
           email: email,
           password: password,
-          displayName: displayName
-        )
+          displayName: displayName,
+        ),
       };
 
       final storedSession = StoredAuthSession(
         baseUrl: baseUrl,
-        session: session
+        session: session,
       );
       await _sessionStore.write(storedSession);
 
@@ -163,9 +163,13 @@ class _AuthGatePageState extends State<_AuthGatePage> {
       }
 
       setState(() {
-        _session = storedSession;
+        _storedSession = storedSession;
         _isSubmittingAuth = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in successfully'))
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -186,13 +190,13 @@ class _AuthGatePageState extends State<_AuthGatePage> {
     }
 
     setState(() {
-      _session = null;
+      _storedSession = null;
       _errorMessage = null;
     });
   }
 
   Future<void> _openList() async {
-    if (_session == null) {
+    if (_storedSession == null) {
       return;
     }
 
@@ -207,8 +211,8 @@ class _AuthGatePageState extends State<_AuthGatePage> {
 
     try {
       final apiClient = ApiClient(
-        baseUrl: _session!.baseUrl,
-        accessToken: _session!.session.accessToken
+        baseUrl: _storedSession!.baseUrl,
+        accessToken: _storedSession!.session.accessToken,
       );
 
       if (!mounted) {
@@ -219,9 +223,9 @@ class _AuthGatePageState extends State<_AuthGatePage> {
         MaterialPageRoute<void>(
           builder: (context) => ListDetailPage(
             apiClient: apiClient,
-            listId: _listIdController.text.trim()
-          )
-        )
+            listId: _listIdController.text.trim(),
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -251,10 +255,10 @@ class _AuthGatePageState extends State<_AuthGatePage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primaryContainer.withValues(alpha: 0.85),
-              theme.colorScheme.surface
-            ]
-          )
+              theme.colorScheme.primaryContainer.withValues(alpha: 0.9),
+              theme.colorScheme.surface,
+            ],
+          ),
         ),
         child: SafeArea(
           child: Center(
@@ -263,17 +267,17 @@ class _AuthGatePageState extends State<_AuthGatePage> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 220),
                   child: _isLoadingSession
                       ? const _LoadingCard()
-                      : _session == null
+                      : _storedSession == null
                           ? _AuthCard(
-                              authMode: _authMode,
-                              authFormKey: _authFormKey,
                               baseUrlController: _baseUrlController,
                               emailController: _emailController,
                               passwordController: _passwordController,
                               displayNameController: _displayNameController,
+                              authFormKey: _authFormKey,
+                              authMode: _authMode,
                               isSubmitting: _isSubmittingAuth,
                               errorMessage: _errorMessage,
                               onModeChanged: (mode) {
@@ -282,23 +286,23 @@ class _AuthGatePageState extends State<_AuthGatePage> {
                                   _errorMessage = null;
                                 });
                               },
-                              onSubmit: _submitAuth
+                              onSubmit: _submitAuth,
                             )
                           : _HomeCard(
-                              session: _session!,
-                              listFormKey: _listFormKey,
+                              session: _storedSession!,
                               listIdController: _listIdController,
+                              listFormKey: _listFormKey,
                               isOpeningList: _isOpeningList,
                               errorMessage: _errorMessage,
                               onOpenList: _openList,
-                              onSignOut: _signOut
-                            )
-                )
-              )
-            )
-          )
-        )
-      )
+                              onSignOut: _signOut,
+                            ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -308,42 +312,45 @@ class _LoadingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Restoring session...')
-          ]
-        )
-      )
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            Text(
+              'Restoring session...',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _AuthCard extends StatelessWidget {
   const _AuthCard({
-    required this.authMode,
-    required this.authFormKey,
     required this.baseUrlController,
     required this.emailController,
     required this.passwordController,
     required this.displayNameController,
+    required this.authFormKey,
+    required this.authMode,
     required this.isSubmitting,
     required this.errorMessage,
     required this.onModeChanged,
-    required this.onSubmit
+    required this.onSubmit,
   });
 
-  final _AuthMode authMode;
-  final GlobalKey<FormState> authFormKey;
   final TextEditingController baseUrlController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController displayNameController;
+  final GlobalKey<FormState> authFormKey;
+  final _AuthMode authMode;
   final bool isSubmitting;
   final String? errorMessage;
   final ValueChanged<_AuthMode> onModeChanged;
@@ -367,36 +374,40 @@ class _AuthCard extends StatelessWidget {
               Text('Zakupy', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
-                'Sign in to your private backend.',
-                style: theme.textTheme.bodyMedium
+                'Sign in to your private backend, then open a list.',
+                style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 20),
               Center(
                 child: ToggleButtons(
                   isSelected: [
                     authMode == _AuthMode.login,
-                    authMode == _AuthMode.register
+                    authMode == _AuthMode.register,
                   ],
                   onPressed: (index) {
-                    onModeChanged(index == 0 ? _AuthMode.login : _AuthMode.register);
+                    onModeChanged(
+                      index == 0 ? _AuthMode.login : _AuthMode.register
+                    );
                   },
                   children: const [
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Login')
+                      child: Text('Login'),
                     ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Register')
-                    )
-                  ]
-                )
+                      child: Text('Register'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: baseUrlController,
                 enabled: !isSubmitting,
-                decoration: const InputDecoration(labelText: 'API base URL'),
+                decoration: const InputDecoration(
+                  labelText: 'API base URL',
+                ),
                 validator: (value) {
                   final trimmed = value?.trim() ?? '';
 
@@ -405,14 +416,17 @@ class _AuthCard extends StatelessWidget {
                   }
 
                   return null;
-                }
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: emailController,
                 enabled: !isSubmitting,
-                decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                ),
                 validator: (value) {
                   final trimmed = value?.trim() ?? '';
 
@@ -421,17 +435,18 @@ class _AuthCard extends StatelessWidget {
                   }
 
                   return null;
-                }
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: passwordController,
                 enabled: !isSubmitting,
+                obscureText: true,
+                autofillHints: const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  helperText: isRegister ? 'At least 8 characters' : null
+                  helperText: isRegister ? 'At least 8 characters' : null,
                 ),
-                obscureText: true,
                 validator: (value) {
                   final trimmed = value?.trim() ?? '';
 
@@ -444,15 +459,18 @@ class _AuthCard extends StatelessWidget {
                   }
 
                   return null;
-                }
+                },
               ),
               if (isRegister) ...[
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: displayNameController,
                   enabled: !isSubmitting,
-                  decoration: const InputDecoration(labelText: 'Display name'),
                   textCapitalization: TextCapitalization.words,
+                  autofillHints: const [AutofillHints.name],
+                  decoration: const InputDecoration(
+                    labelText: 'Display name',
+                  ),
                   validator: (value) {
                     final trimmed = value?.trim() ?? '';
 
@@ -461,33 +479,31 @@ class _AuthCard extends StatelessWidget {
                     }
 
                     return null;
-                  }
-                )
+                  },
+                ),
               ],
               const SizedBox(height: 20),
               if (errorMessage != null) ...[
                 Text(
                   errorMessage!,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error
-                  )
+                    color: theme.colorScheme.error,
+                  ),
                 ),
-                const SizedBox(height: 12)
+                const SizedBox(height: 12),
               ],
               FilledButton(
                 onPressed: isSubmitting ? null : onSubmit,
-                child: Text(
-                  isSubmitting
-                      ? 'Please wait...'
-                      : isRegister
-                          ? 'Create account'
-                          : 'Sign in'
-                )
-              )
-            ]
-          )
-        )
-      )
+                child: Text(isSubmitting
+                    ? 'Please wait...'
+                    : isRegister
+                        ? 'Create account'
+                        : 'Sign in'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -495,17 +511,17 @@ class _AuthCard extends StatelessWidget {
 class _HomeCard extends StatelessWidget {
   const _HomeCard({
     required this.session,
-    required this.listFormKey,
     required this.listIdController,
+    required this.listFormKey,
     required this.isOpeningList,
     required this.errorMessage,
     required this.onOpenList,
-    required this.onSignOut
+    required this.onSignOut,
   });
 
   final StoredAuthSession session;
-  final GlobalKey<FormState> listFormKey;
   final TextEditingController listIdController;
+  final GlobalKey<FormState> listFormKey;
   final bool isOpeningList;
   final String? errorMessage;
   final VoidCallback onOpenList;
@@ -532,13 +548,15 @@ class _HomeCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 session.baseUrl,
-                style: theme.textTheme.bodySmall
+                style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: listIdController,
                 enabled: !isOpeningList,
-                decoration: const InputDecoration(labelText: 'List ID'),
+                decoration: const InputDecoration(
+                  labelText: 'List ID',
+                ),
                 validator: (value) {
                   final trimmed = value?.trim() ?? '';
 
@@ -547,31 +565,31 @@ class _HomeCard extends StatelessWidget {
                   }
 
                   return null;
-                }
+                },
               ),
               const SizedBox(height: 20),
               if (errorMessage != null) ...[
                 Text(
                   errorMessage!,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error
-                  )
+                    color: theme.colorScheme.error,
+                  ),
                 ),
-                const SizedBox(height: 12)
+                const SizedBox(height: 12),
               ],
               FilledButton(
                 onPressed: isOpeningList ? null : onOpenList,
-                child: Text(isOpeningList ? 'Opening...' : 'Open list')
+                child: Text(isOpeningList ? 'Opening...' : 'Open list'),
               ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: isOpeningList ? null : onSignOut,
-                child: const Text('Sign out')
-              )
-            ]
-          )
-        )
-      )
+                child: const Text('Sign out'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
