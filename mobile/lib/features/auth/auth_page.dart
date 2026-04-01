@@ -13,12 +13,14 @@ class AuthPage extends StatefulWidget {
   const AuthPage(
       {required this.onLogin,
       required this.onRegister,
+      this.initialBaseUrl = '',
       this.isSubmitting = false,
       this.errorMessage,
       super.key});
 
   final LoginSubmit onLogin;
   final RegisterSubmit onRegister;
+  final String initialBaseUrl;
   final bool isSubmitting;
   final String? errorMessage;
 
@@ -38,7 +40,7 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void initState() {
     super.initState();
-    _baseUrlController = TextEditingController(text: 'http://localhost:3000');
+    _baseUrlController = TextEditingController(text: widget.initialBaseUrl);
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
     _displayNameController = TextEditingController();
@@ -85,7 +87,7 @@ class _AuthPageState extends State<AuthPage> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                  theme.colorScheme.primaryContainer.withOpacity(0.9),
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.9),
                   theme.colorScheme.surface
                 ])),
             child: SafeArea(
@@ -111,7 +113,7 @@ class _AuthPageState extends State<AuthPage> {
                                               Text(
                                                   _isRegisterMode
                                                       ? 'Create your private account and connect to your home backend.'
-                                                      : 'Sign in to your private shopping lists.',
+                                                      : 'Sign in to your private shopping lists. On real phones, use your Tailscale or Caddy URL instead of localhost.',
                                                   style: theme
                                                       .textTheme.bodyMedium),
                                               const SizedBox(height: 24),
@@ -130,7 +132,7 @@ class _AuthPageState extends State<AuthPage> {
                                                   decoration: const InputDecoration(
                                                       labelText: 'API base URL',
                                                       hintText:
-                                                          'http://localhost:3000'),
+                                                          'https://zakupy.your-tailnet.ts.net'),
                                                   keyboardType:
                                                       TextInputType.url,
                                                   enabled: !widget.isSubmitting,
@@ -148,7 +150,7 @@ class _AuthPageState extends State<AuthPage> {
                                                     if (uri == null ||
                                                         !uri.hasScheme ||
                                                         uri.host.isEmpty) {
-                                                      return 'Enter a valid URL, for example http://localhost:3000';
+                                                      return 'Enter a valid URL, for example https://zakupy.your-tailnet.ts.net';
                                                     }
 
                                                     return null;

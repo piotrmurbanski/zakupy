@@ -6,6 +6,8 @@ import 'features/auth/auth_repository.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 
+const _defaultApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+
 class ZakupyApp extends StatelessWidget {
   const ZakupyApp({super.key});
 
@@ -80,6 +82,7 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
         }
 
         return AuthPage(
+          initialBaseUrl: _defaultApiBaseUrl,
           isSubmitting: state.status == SessionStatus.loading,
           errorMessage: state.errorMessage,
           onLogin: ({
