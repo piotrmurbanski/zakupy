@@ -100,7 +100,9 @@ Najprostszy lokalny flow:
 2. Sprawdź `curl http://localhost:3000/health`.
 3. Wyślij `POST /auth/register`, żeby potwierdzić zapis do Postgresa.
 4. W [mobile/](/Users/piotr/sandbox/Zakupy/mobile) wykonaj `flutter create .`, potem `flutter pub get`.
-5. Uruchom `flutter run` na simulatorze iOS albo emulatorze Android.
+5. Uruchom `flutter run --dart-define=API_BASE_URL=https://twoj-host.tailnet.ts.net` na simulatorze iOS albo emulatorze Android.
+
+Na prawdziwych urządzeniach nie używaj `localhost` jako API URL. Telefon powinien łączyć się z backendem przez adres Tailscale/Caddy dostępny w sieci urządzenia, najlepiej po HTTPS.
 
 ## MVP
 

@@ -3,6 +3,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 
 void main() {
+  test('AuthResponse.fromJson parses authenticated user payloads', () {
+    final auth = AuthResponse.fromJson({
+      'accessToken': 'jwt-token',
+      'user': {
+        'id': 'user_1',
+        'email': 'test@example.com',
+        'displayName': 'Piotr',
+        'createdAt': '2026-03-30T10:00:00.000Z',
+        'updatedAt': '2026-03-30T10:00:00.000Z'
+      }
+    });
+
+    expect(auth.accessToken, 'jwt-token');
+    expect(auth.user.id, 'user_1');
+    expect(auth.user.email, 'test@example.com');
+    expect(auth.user.displayName, 'Piotr');
+  });
+
+  test('ShoppingListSummary.fromJson parses list payloads', () {
+    final list = ShoppingListSummary.fromJson({
+      'id': 'list_1',
+      'name': 'Weekly groceries',
+      'ownerUserId': 'user_1',
+      'createdAt': '2026-03-30T10:00:00.000Z',
+      'updatedAt': '2026-03-31T10:00:00.000Z'
+    });
+
+    expect(list.id, 'list_1');
+    expect(list.name, 'Weekly groceries');
+    expect(list.isOwnedBy('user_1'), true);
+    expect(list.isOwnedBy('user_2'), false);
+  });
+
   test('ShoppingListItem.fromJson parses API payloads', () {
     final item = ShoppingListItem.fromJson({
       'id': 'item_1',
@@ -63,5 +96,11 @@ void main() {
     expect(updated.quantity, '1');
     expect(updated.unit, 'l');
     expect(updated.isChecked, true);
+  });
+
+  test('ApiException identifies unauthorized responses', () {
+    const error = ApiException('Session expired', statusCode: 401);
+
+    expect(error.isUnauthorized, true);
   });
 }

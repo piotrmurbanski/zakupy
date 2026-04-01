@@ -8,11 +8,15 @@ class ListDetailPage extends StatefulWidget {
   const ListDetailPage({
     required this.apiClient,
     required this.listId,
+    required this.listName,
+    required this.onUnauthorized,
     super.key
   });
 
   final ApiClient apiClient;
   final String listId;
+  final String listName;
+  final Future<void> Function() onUnauthorized;
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -64,14 +68,19 @@ class _ListDetailPageState extends State<ListDetailPage> {
         _isLoading = false;
         _errorMessage = null;
       });
-    } catch (error) {
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
+
       if (!mounted) {
         return;
       }
 
       setState(() {
         _isLoading = false;
-        _errorMessage = error.toString();
+        _errorMessage = error.message;
       });
     }
   }
@@ -91,13 +100,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
     try {
       await widget.apiClient.createItem(widget.listId, draft);
       await _reloadItems(silent: true);
-    } catch (error) {
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
+
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się dodać pozycji: $error'))
+        SnackBar(content: Text('Could not add item: ${error.message}'))
       );
     }
   }
@@ -117,13 +131,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
     try {
       await widget.apiClient.updateItem(widget.listId, item.id, draft);
       await _reloadItems(silent: true);
-    } catch (error) {
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
+
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się zapisać pozycji: $error'))
+        SnackBar(content: Text('Could not save item: ${error.message}'))
       );
     }
   }
@@ -140,13 +159,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
         item.toDraft().copyWith(isChecked: checked)
       );
       await _reloadItems(silent: true);
-    } catch (error) {
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
+
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się zmienić stanu pozycji: $error'))
+        SnackBar(content: Text('Could not update item: ${error.message}'))
       );
     }
   }
@@ -179,13 +203,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
     try {
       await widget.apiClient.deleteItem(widget.listId, item.id);
       await _reloadItems(silent: true);
-    } catch (error) {
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
+
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się usunąć pozycji: $error'))
+        SnackBar(content: Text('Could not delete item: ${error.message}'))
       );
     }
   }
@@ -194,7 +223,17 @@ class _ListDetailPageState extends State<ListDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lista ${widget.listId}'),
+        title: Text(widget.listName),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(24),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              widget.listId,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () => _reloadItems(),
@@ -238,7 +277,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const Icon(Icons.error_outline, size: 48),
                 const SizedBox(height: 12),
                 Text(
-                  'Nie udało się pobrać pozycji',
+                  'Could not load items',
                   style: Theme.of(context).textTheme.titleMedium
                 ),
                 const SizedBox(height: 8),
