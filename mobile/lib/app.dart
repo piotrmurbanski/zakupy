@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/network/api_client.dart';
-import 'features/lists/list_detail_page.dart';
+import 'features/lists/lists_overview_page.dart';
 
 class ZakupyApp extends StatelessWidget {
   const ZakupyApp({super.key});
@@ -30,25 +30,22 @@ class _LauncherPageState extends State<_LauncherPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _baseUrlController;
   late final TextEditingController _accessTokenController;
-  late final TextEditingController _listIdController;
 
   @override
   void initState() {
     super.initState();
     _baseUrlController = TextEditingController(text: 'http://localhost:3000');
     _accessTokenController = TextEditingController();
-    _listIdController = TextEditingController();
   }
 
   @override
   void dispose() {
     _baseUrlController.dispose();
     _accessTokenController.dispose();
-    _listIdController.dispose();
     super.dispose();
   }
 
-  void _openList() {
+  void _openLists() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -60,10 +57,7 @@ class _LauncherPageState extends State<_LauncherPage> {
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => ListDetailPage(
-          apiClient: apiClient,
-          listId: _listIdController.text.trim()
-        )
+        builder: (context) => ListsOverviewPage(apiClient: apiClient)
       )
     );
   }
@@ -104,7 +98,7 @@ class _LauncherPageState extends State<_LauncherPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Connect to your private backend and open a shopping list.',
+                        'Connect to your private backend and browse your shopping lists.',
                         style: theme.textTheme.bodyMedium
                       ),
                       const SizedBox(height: 24),
@@ -139,26 +133,10 @@ class _LauncherPageState extends State<_LauncherPage> {
                           return null;
                         }
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _listIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'List ID'
-                        ),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
-
-                          if (trimmed.isEmpty) {
-                            return 'List ID is required';
-                          }
-
-                          return null;
-                        }
-                      ),
                       const SizedBox(height: 20),
                       FilledButton(
-                        onPressed: _openList,
-                        child: const Text('Open list')
+                        onPressed: _openLists,
+                        child: const Text('Open my lists')
                       )
                     ]
                   )
