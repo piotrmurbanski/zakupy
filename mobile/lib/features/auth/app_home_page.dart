@@ -98,34 +98,6 @@ class _AppHomePageState extends State<AppHomePage> {
     });
   }
 
-  Future<void> _shareList(ShoppingListSummary list) async {
-    final email = await _showTextPrompt(
-      title: 'Share list',
-      label: 'User email',
-      actionLabel: 'Share',
-      keyboardType: TextInputType.emailAddress,
-    );
-
-    if (email == null) {
-      return;
-    }
-
-    await _runMutation(() async {
-      final member = await _apiClient.shareList(
-        listId: list.id,
-        email: email,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Shared with ${member.user.email}.')),
-      );
-    });
-  }
-
   Future<void> _editBackendUrl() async {
     final updatedBaseUrl = await _showTextPrompt(
       title: 'Backend URL',
@@ -300,8 +272,7 @@ class _AppHomePageState extends State<AppHomePage> {
                     const SizedBox(height: 4),
                     Text(widget.session.session.user.email),
                     const SizedBox(height: 12),
-                    Text(widget.session.baseUrl,
-                        style: theme.textTheme.bodySmall),
+                    Text(widget.session.baseUrl, style: theme.textTheme.bodySmall),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -346,8 +317,7 @@ class _AppHomePageState extends State<AppHomePage> {
               const Padding(
                 padding: EdgeInsets.only(top: 32),
                 child: Center(
-                  child: Text(
-                      'No lists yet. Create the first one to get started.'),
+                  child: Text('No lists yet. Create the first one to get started.'),
                 ),
               )
             else
@@ -363,14 +333,7 @@ class _AppHomePageState extends State<AppHomePage> {
                             ? 'Owner'
                             : 'Shared with you',
                       ),
-                      trailing: list.isOwnedBy(widget.session.session.user.id)
-                          ? IconButton(
-                              tooltip: 'Share list',
-                              onPressed:
-                                  _isUpdating ? null : () => _shareList(list),
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                            )
-                          : const Icon(Icons.chevron_right),
+                      trailing: const Icon(Icons.chevron_right),
                     ),
                   ),
                 ),

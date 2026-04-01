@@ -158,7 +158,10 @@ class ApiClient {
   }
 
   Future<ShoppingListItem> updateItem(
-      String listId, String itemId, ItemDraft draft) {
+    String listId,
+    String itemId,
+    ItemDraft draft,
+  ) {
     return _guard(() async {
       final response = await _dio.patch<Map<String, dynamic>>(
         '/lists/$listId/items/$itemId',
@@ -213,7 +216,9 @@ class ApiClient {
   }
 
   static Map<String, dynamic> _readObject(
-      Map<String, dynamic>? payload, String key) {
+    Map<String, dynamic>? payload,
+    String key,
+  ) {
     final value = payload?[key];
 
     if (value is Map<String, dynamic>) {

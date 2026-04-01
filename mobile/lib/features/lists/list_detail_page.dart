@@ -26,6 +26,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   final List<ShoppingListItem> _items = <ShoppingListItem>[];
 
   bool _isLoading = true;
+  bool _isSharing = false;
   String? _errorMessage;
   Timer? _refreshTimer;
 
@@ -219,6 +220,61 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
+  Future<void> _shareList() async {
+    if (_isSharing) {
+      return;
+    }
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return const _ShareListDialog();
+      },
+    );
+
+    if (email == null) {
+      return;
+    }
+
+    setState(() {
+      _isSharing = true;
+    });
+
+    try {
+      final member = await widget.apiClient.shareList(
+        listId: widget.listId,
+        email: email,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Shared with ${member.user.email}.')),
+      );
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSharing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.listName ?? 'List ${widget.listId}';
@@ -242,6 +298,20 @@ class _ListDetailPageState extends State<ListDetailPage> {
           IconButton(
             onPressed: () => _reloadItems(),
             icon: const Icon(Icons.refresh),
+          ),
+          PopupMenuButton<_ListAction>(
+            onSelected: (action) {
+              if (action == _ListAction.share) {
+                _shareList();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<_ListAction>(
+                value: _ListAction.share,
+                enabled: !_isSharing,
+                child: const Text('Share list'),
+              ),
+            ],
           ),
         ],
       ),
@@ -373,6 +443,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 }
 
+enum _ListAction {
+  share,
+}
+
 class _ItemEditorDialog extends StatefulWidget {
   const _ItemEditorDialog({this.initialItem});
 
@@ -491,6 +565,84 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
         FilledButton(
           onPressed: _submit,
           child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShareListDialog extends StatefulWidget {
+  const _ShareListDialog();
+
+  @override
+  State<_ShareListDialog> createState() => _ShareListDialogState();
+}
+
+class _ShareListDialogState extends State<_ShareListDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _emailController;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    Navigator.of(context).pop(_emailController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Share list'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _emailController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'User email',
+            hintText: 'second-user@example.com',
+          ),
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _submit(),
+          validator: (value) {
+            final trimmed = value?.trim() ?? '';
+
+            if (trimmed.isEmpty) {
+              return 'Email is required';
+            }
+
+            final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+            if (!emailPattern.hasMatch(trimmed)) {
+              return 'Enter a valid email address';
+            }
+
+            return null;
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Share'),
         ),
       ],
     );

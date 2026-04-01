@@ -47,6 +47,25 @@ void main() {
     expect(list.isOwnedBy('user_2'), false);
   });
 
+  test('ListMember.fromJson parses shared user payloads', () {
+    final member = ListMember.fromJson({
+      'id': 'member_1',
+      'listId': 'list_1',
+      'userId': 'user_2',
+      'role': 'editor',
+      'createdAt': '2026-03-30T10:00:00.000Z',
+      'updatedAt': '2026-03-30T10:05:00.000Z',
+      'user': {
+        'id': 'user_2',
+        'email': 'second-user@example.com',
+        'displayName': 'Second User'
+      }
+    });
+
+    expect(member.user.email, 'second-user@example.com');
+    expect(member.role, 'editor');
+  });
+
   test('ShoppingListItem.fromJson parses API payloads', () {
     final item = ShoppingListItem.fromJson({
       'id': 'item_1',
@@ -71,8 +90,7 @@ void main() {
     expect(item.createdByUserId, 'user_1');
   });
 
-  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields',
-      () {
+  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields', () {
     final item = ShoppingListItem(
       id: 'item_1',
       listId: 'list_1',
@@ -117,7 +135,7 @@ void main() {
   });
 
   test('ApiException prefers backend message from Dio responses', () {
-    final exception = ApiException.fromDioException(
+    final authException = ApiException.fromDioException(
       DioException(
         requestOptions: RequestOptions(path: '/auth/login'),
         response: Response<Map<String, dynamic>>(
@@ -129,12 +147,26 @@ void main() {
       ),
     );
 
-    expect(exception.message, 'Invalid email or password');
-    expect(exception.statusCode, 401);
+    expect(authException.message, 'Invalid email or password');
+    expect(authException.statusCode, 401);
+
+    final memberException = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/lists/list_1/members'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/lists/list_1/members'),
+          statusCode: 409,
+          data: {'message': 'User is already a member of this list'},
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    expect(memberException.message, 'User is already a member of this list');
+    expect(memberException.statusCode, 409);
   });
 
-  test('ApiClient login sends credentials and parses the auth session',
-      () async {
+  test('ApiClient login sends credentials and parses the auth session', () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(
         jsonEncode({
