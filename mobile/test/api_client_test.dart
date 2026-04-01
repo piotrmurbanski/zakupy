@@ -28,34 +28,23 @@ class _RecordingAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('AuthSession and AuthUser parse the authenticated user payload', () {
-    final authResponse = AuthSession.fromJson({
-      'accessToken': 'jwt-token',
-      'user': {
-        'id': 'user_1',
-        'email': 'test@example.com',
-        'displayName': 'Piotr',
-        'createdAt': '2026-03-30T10:00:00.000Z',
-        'updatedAt': '2026-03-30T10:00:00.000Z'
-      }
-    });
-
-    expect(authResponse.accessToken, 'jwt-token');
-    expect(authResponse.user.email, 'test@example.com');
-    expect(authResponse.user.displayName, 'Piotr');
+  test('normalizeBaseUrl trims a trailing slash', () {
+    expect(normalizeBaseUrl('http://localhost:3000/'), 'http://localhost:3000');
   });
 
-  test('ApiException prefers backend message from Dio responses', () {
-    final exception = ApiException.fromDioException(DioException(
-        requestOptions: RequestOptions(path: '/auth/login'),
-        response: Response<Map<String, dynamic>>(
-            requestOptions: RequestOptions(path: '/auth/login'),
-            statusCode: 401,
-            data: {'message': 'Invalid email or password'}),
-        type: DioExceptionType.badResponse));
+  test('ShoppingListSummary.fromJson parses list payloads', () {
+    final list = ShoppingListSummary.fromJson({
+      'id': 'list_1',
+      'name': 'Weekly groceries',
+      'ownerUserId': 'user_1',
+      'createdAt': '2026-03-30T10:00:00.000Z',
+      'updatedAt': '2026-03-31T10:00:00.000Z'
+    });
 
-    expect(exception.message, 'Invalid email or password');
-    expect(exception.statusCode, 401);
+    expect(list.id, 'list_1');
+    expect(list.name, 'Weekly groceries');
+    expect(list.isOwnedBy('user_1'), true);
+    expect(list.isOwnedBy('user_2'), false);
   });
 
   test('ShoppingListItem.fromJson parses API payloads', () {
@@ -82,27 +71,35 @@ void main() {
     expect(item.createdByUserId, 'user_1');
   });
 
-  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields',
-      () {
+  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields', () {
     final item = ShoppingListItem(
-        id: 'item_1',
-        listId: 'list_1',
-        name: 'Bread',
-        quantity: null,
-        unit: 'pcs',
-        isChecked: false,
-        sortOrder: 1,
-        createdByUserId: 'user_1',
-        createdAt: DateTime(2026, 3, 30, 10),
-        updatedAt: DateTime(2026, 3, 30, 10));
+      id: 'item_1',
+      listId: 'list_1',
+      name: 'Bread',
+      quantity: null,
+      unit: 'pcs',
+      isChecked: false,
+      sortOrder: 1,
+      createdByUserId: 'user_1',
+      createdAt: DateTime(2026, 3, 30, 10),
+      updatedAt: DateTime(2026, 3, 30, 10),
+    );
 
-    expect(item.toDraft().toJson(),
-        {'name': 'Bread', 'quantity': null, 'unit': 'pcs', 'isChecked': false});
+    expect(item.toDraft().toJson(), {
+      'name': 'Bread',
+      'quantity': null,
+      'unit': 'pcs',
+      'isChecked': false,
+    });
   });
 
   test('ItemDraft.copyWith keeps existing values by default', () {
-    const draft =
-        ItemDraft(name: 'Milk', quantity: '1', unit: 'l', isChecked: false);
+    const draft = ItemDraft(
+      name: 'Milk',
+      quantity: '1',
+      unit: 'l',
+      isChecked: false,
+    );
 
     final updated = draft.copyWith(isChecked: true);
 
@@ -112,9 +109,15 @@ void main() {
     expect(updated.isChecked, true);
   });
 
-  test('ApiClient login sends credentials and parses the auth session',
-      () async {
-    final adapter = _RecordingAdapter(ResponseBody.fromString(
+  test('ApiException identifies unauthorized responses', () {
+    const error = ApiException('Session expired', statusCode: 401);
+
+    expect(error.isUnauthorized, true);
+  });
+
+  test('ApiClient login sends credentials and parses the auth session', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
         jsonEncode({
           'accessToken': 'jwt-token',
           'user': {
@@ -122,26 +125,52 @@ void main() {
             'email': 'test@example.com',
             'displayName': 'Test User',
             'createdAt': '2026-03-30T10:00:00.000Z',
-            'updatedAt': '2026-03-30T10:00:00.000Z'
-          }
+            'updatedAt': '2026-03-30T10:00:00.000Z',
+          },
         }),
         200,
         headers: {
-          Headers.contentTypeHeader: [Headers.jsonContentType]
-        }));
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
     final dio = Dio();
     dio.httpClientAdapter = adapter;
 
-    final client = ApiClient(baseUrl: 'http://localhost:3000/', dio: dio);
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      dio: dio,
+    );
     final session = await client.login(
-        email: 'test@example.com', password: 'supersecret123');
+      email: 'test@example.com',
+      password: 'supersecret123',
+    );
 
     expect(adapter.lastRequest?.path, '/auth/login');
     expect(adapter.lastRequest?.method, 'POST');
-    expect(adapter.lastRequest?.data,
-        {'email': 'test@example.com', 'password': 'supersecret123'});
+    expect(adapter.lastRequest?.data, {
+      'email': 'test@example.com',
+      'password': 'supersecret123',
+    });
     expect(adapter.lastRequest?.headers['Authorization'], isNull);
     expect(session.accessToken, 'jwt-token');
     expect(session.user.email, 'test@example.com');
+  });
+
+  test('AuthSession and AuthUser parse API payloads', () {
+    final session = AuthSession.fromJson({
+      'accessToken': 'jwt-token',
+      'user': {
+        'id': 'user_1',
+        'email': 'test@example.com',
+        'displayName': 'Test User',
+        'createdAt': '2026-03-30T10:00:00.000Z',
+        'updatedAt': '2026-03-30T10:00:00.000Z',
+      },
+    });
+
+    expect(session.accessToken, 'jwt-token');
+    expect(session.user.id, 'user_1');
+    expect(session.user.displayName, 'Test User');
   });
 }
