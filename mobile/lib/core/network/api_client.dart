@@ -1,22 +1,69 @@
 import 'package:dio/dio.dart';
 
+import '../../features/auth/auth_models.dart';
+
 class ApiClient {
   ApiClient({
     required String baseUrl,
-    required String accessToken,
+    String accessToken = '',
     Dio? dio,
-  }) : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: _normalizeBaseUrl(baseUrl),
-                headers: {
-                  'Authorization': 'Bearer $accessToken',
-                  'Content-Type': 'application/json'
-                }
-              )
-            );
+  })  : _baseUrl = _normalizeBaseUrl(baseUrl),
+        _dio = dio ?? Dio() {
+    _dio.options = _dio.options.copyWith(
+      baseUrl: _baseUrl,
+      headers: {
+        ..._dio.options.headers,
+        ..._buildHeaders(accessToken)
+      }
+    );
+  }
 
+  final String _baseUrl;
   final Dio _dio;
+
+  ApiClient withAccessToken(String accessToken) {
+    return ApiClient(
+      baseUrl: _baseUrl,
+      accessToken: accessToken
+    );
+  }
+
+  Future<AuthSession> login({
+    required String email,
+    required String password
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/login',
+      data: {
+        'email': email,
+        'password': password
+      }
+    );
+
+    return _parseAuthSession(response.data);
+  }
+
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/register',
+      data: {
+        'email': email,
+        'password': password,
+        'displayName': displayName
+      }
+    );
+
+    return _parseAuthSession(response.data);
+  }
+
+  Future<AuthUser> fetchCurrentUser() async {
+    final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+    return AuthUser.fromJson(_readObject(response.data, 'user'));
+  }
 
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
     final response = await _dio.get<Map<String, dynamic>>('/lists/$listId/items');
@@ -50,6 +97,31 @@ class ApiClient {
 
   static String _normalizeBaseUrl(String baseUrl) {
     return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+  }
+
+  static Map<String, String> _buildHeaders(String accessToken) {
+    final headers = <String, String>{
+      'Content-Type': 'application/json'
+    };
+
+    if (accessToken.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    }
+
+    return headers;
+  }
+
+  static AuthSession _parseAuthSession(Map<String, dynamic>? payload) {
+    final accessToken = payload?['accessToken'];
+
+    if (accessToken is! String || accessToken.trim().isEmpty) {
+      throw StateError('Missing accessToken in API response');
+    }
+
+    return AuthSession.fromJson({
+      'accessToken': accessToken,
+      'user': _readObject(payload, 'user')
+    });
   }
 
   static Map<String, dynamic> _readObject(Map<String, dynamic>? payload, String key) {

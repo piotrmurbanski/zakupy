@@ -2,4 +2,5 @@
 **/dist/
 **/.dart_tool/
 **/build/
+**/.flutter-plugins-dependencies
 **/.DS_Store
