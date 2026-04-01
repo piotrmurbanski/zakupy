@@ -6,11 +6,12 @@ import 'auth_repository.dart';
 import 'auth_session_store.dart';
 
 class AppHomePage extends StatefulWidget {
-  const AppHomePage(
-      {required this.session,
-      required this.authRepository,
-      required this.onLogout,
-      super.key});
+  const AppHomePage({
+    required this.session,
+    required this.authRepository,
+    required this.onLogout,
+    super.key,
+  });
 
   final StoredAuthSession session;
   final AuthRepository authRepository;
@@ -23,7 +24,6 @@ class AppHomePage extends StatefulWidget {
 class _AppHomePageState extends State<AppHomePage> {
   final List<ShoppingListSummary> _lists = <ShoppingListSummary>[];
 
-  bool _isLoggingOut = false;
   bool _isLoading = true;
   bool _isUpdating = false;
   String? _errorMessage;
@@ -35,19 +35,7 @@ class _AppHomePageState extends State<AppHomePage> {
   }
 
   Future<void> _logout() async {
-    setState(() {
-      _isLoggingOut = true;
-    });
-
-    try {
-      await widget.onLogout();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoggingOut = false;
-        });
-      }
-    }
+    await widget.onLogout();
   }
 
   ApiClient get _apiClient {
@@ -153,7 +141,8 @@ class _AppHomePageState extends State<AppHomePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Log out and sign back in to switch the saved backend URL.'),
+        content:
+            Text('Log out and sign back in to switch the saved backend URL.'),
       ),
     );
   }
@@ -311,7 +300,8 @@ class _AppHomePageState extends State<AppHomePage> {
                     const SizedBox(height: 4),
                     Text(widget.session.session.user.email),
                     const SizedBox(height: 12),
-                    Text(widget.session.baseUrl, style: theme.textTheme.bodySmall),
+                    Text(widget.session.baseUrl,
+                        style: theme.textTheme.bodySmall),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -356,7 +346,8 @@ class _AppHomePageState extends State<AppHomePage> {
               const Padding(
                 padding: EdgeInsets.only(top: 32),
                 child: Center(
-                  child: Text('No lists yet. Create the first one to get started.'),
+                  child: Text(
+                      'No lists yet. Create the first one to get started.'),
                 ),
               )
             else
@@ -375,7 +366,8 @@ class _AppHomePageState extends State<AppHomePage> {
                       trailing: list.isOwnedBy(widget.session.session.user.id)
                           ? IconButton(
                               tooltip: 'Share list',
-                              onPressed: _isUpdating ? null : () => _shareList(list),
+                              onPressed:
+                                  _isUpdating ? null : () => _shareList(list),
                               icon: const Icon(Icons.person_add_alt_1_outlined),
                             )
                           : const Icon(Icons.chevron_right),

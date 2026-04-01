@@ -87,7 +87,7 @@ class _AuthPageState extends State<AuthPage> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                  theme.colorScheme.primaryContainer.withOpacity(0.9),
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.9),
                   theme.colorScheme.surface
                 ])),
             child: SafeArea(

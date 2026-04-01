@@ -88,8 +88,9 @@ class ApiClient {
         '/lists',
         options: _authOptions(),
       );
-      final items = (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
-          .cast<Map<String, dynamic>>();
+      final items =
+          (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListSummary.fromJson).toList(growable: false);
     });
@@ -136,8 +137,9 @@ class ApiClient {
         '/lists/$listId/items',
         options: _authOptions(),
       );
-      final items = (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
-          .cast<Map<String, dynamic>>();
+      final items =
+          (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListItem.fromJson).toList(growable: false);
     });
@@ -155,7 +157,8 @@ class ApiClient {
     });
   }
 
-  Future<ShoppingListItem> updateItem(String listId, String itemId, ItemDraft draft) {
+  Future<ShoppingListItem> updateItem(
+      String listId, String itemId, ItemDraft draft) {
     return _guard(() async {
       final response = await _dio.patch<Map<String, dynamic>>(
         '/lists/$listId/items/$itemId',
@@ -209,7 +212,8 @@ class ApiClient {
     );
   }
 
-  static Map<String, dynamic> _readObject(Map<String, dynamic>? payload, String key) {
+  static Map<String, dynamic> _readObject(
+      Map<String, dynamic>? payload, String key) {
     final value = payload?[key];
 
     if (value is Map<String, dynamic>) {
@@ -239,7 +243,8 @@ class ApiException implements Exception {
       }
     }
 
-    if (error.error is SocketException || error.type == DioExceptionType.connectionError) {
+    if (error.error is SocketException ||
+        error.type == DioExceptionType.connectionError) {
       return const ApiException(
         'Could not reach the backend. Use your Tailscale or Caddy address on real devices instead of localhost.',
       );
