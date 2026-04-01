@@ -9,7 +9,7 @@ class ListDetailPage extends StatefulWidget {
     required this.apiClient,
     required this.listId,
     this.initialList,
-    super.key
+    super.key,
   });
 
   final ApiClient apiClient;
@@ -58,7 +58,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     try {
       final results = await Future.wait<Object>([
         widget.apiClient.fetchList(widget.listId),
-        widget.apiClient.fetchItems(widget.listId)
+        widget.apiClient.fetchItems(widget.listId),
       ]);
       final list = results[0] as ShoppingList;
       final items = results[1] as List<ShoppingListItem>;
@@ -92,7 +92,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return const _ItemEditorDialog();
-      }
+      },
     );
 
     if (draft == null) {
@@ -108,7 +108,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się dodać pozycji: $error'))
+        SnackBar(content: Text('Nie udało się dodać pozycji: $error')),
       );
     }
   }
@@ -118,7 +118,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return _ItemEditorDialog(initialItem: item);
-      }
+      },
     );
 
     if (draft == null) {
@@ -134,7 +134,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się zapisać pozycji: $error'))
+        SnackBar(content: Text('Nie udało się zapisać pozycji: $error')),
       );
     }
   }
@@ -148,7 +148,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       await widget.apiClient.updateItem(
         widget.listId,
         item.id,
-        item.toDraft().copyWith(isChecked: checked)
+        item.toDraft().copyWith(isChecked: checked),
       );
       await _reloadData(silent: true);
     } catch (error) {
@@ -157,7 +157,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się zmienić stanu pozycji: $error'))
+        SnackBar(content: Text('Nie udało się zmienić stanu pozycji: $error')),
       );
     }
   }
@@ -172,15 +172,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')
+              child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete')
-            )
-          ]
+              child: const Text('Delete'),
+            ),
+          ],
         );
-      }
+      },
     );
 
     if (shouldDelete != true) {
@@ -196,7 +196,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nie udało się usunąć pozycji: $error'))
+        SnackBar(content: Text('Nie udało się usunąć pozycji: $error')),
       );
     }
   }
@@ -210,7 +210,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return const _ShareListDialog();
-      }
+      },
     );
 
     if (email == null) {
@@ -229,7 +229,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('List shared with ${member.user.email}'))
+        SnackBar(content: Text('List shared with ${member.user.email}')),
       );
     } catch (error) {
       if (!mounted) {
@@ -237,7 +237,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not share the list: $error'))
+        SnackBar(content: Text('Could not share the list: $error')),
       );
     } finally {
       if (mounted) {
@@ -256,7 +256,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         actions: [
           IconButton(
             onPressed: () => _reloadData(),
-            icon: const Icon(Icons.refresh)
+            icon: const Icon(Icons.refresh),
           ),
           PopupMenuButton<_ListAction>(
             onSelected: (action) {
@@ -268,20 +268,20 @@ class _ListDetailPageState extends State<ListDetailPage> {
               PopupMenuItem<_ListAction>(
                 value: _ListAction.share,
                 enabled: !_isSharing,
-                child: const Text('Share list')
-              )
-            ]
-          )
-        ]
+                child: const Text('Share list'),
+              ),
+            ],
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addItem,
-        child: const Icon(Icons.add)
+        child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
         onRefresh: () => _reloadData(silent: true),
-        child: _buildBody(context)
-      )
+        child: _buildBody(context),
+      ),
     );
   }
 
@@ -292,9 +292,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         children: const [
           SizedBox(height: 240),
           Center(
-            child: CircularProgressIndicator()
-          )
-        ]
+            child: CircularProgressIndicator(),
+          ),
+        ],
       );
     }
 
@@ -311,22 +311,22 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Nie udało się pobrać pozycji',
-                  style: Theme.of(context).textTheme.titleMedium
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _errorMessage ?? 'Unknown error',
-                  textAlign: TextAlign.center
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _reloadData(),
-                  child: const Text('Retry')
-                )
-              ]
-            )
-          )
-        ]
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
@@ -336,9 +336,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         children: const [
           SizedBox(height: 160),
           Center(
-            child: Text('No items yet. Add the first one.')
-          )
-        ]
+            child: Text('No items yet. Add the first one.'),
+          ),
+        ],
       );
     }
 
@@ -354,13 +354,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
           child: ListTile(
             leading: Checkbox(
               value: item.isChecked,
-              onChanged: (checked) => _toggleItem(item, checked)
+              onChanged: (checked) => _toggleItem(item, checked),
             ),
             title: Text(
               item.name,
               style: TextStyle(
-                decoration: item.isChecked ? TextDecoration.lineThrough : TextDecoration.none
-              )
+                decoration:
+                    item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+              ),
             ),
             subtitle: _buildSubtitle(item),
             trailing: Row(
@@ -368,17 +369,17 @@ class _ListDetailPageState extends State<ListDetailPage> {
               children: [
                 IconButton(
                   onPressed: () => _editItem(item),
-                  icon: const Icon(Icons.edit_outlined)
+                  icon: const Icon(Icons.edit_outlined),
                 ),
                 IconButton(
                   onPressed: () => _deleteItem(item),
-                  icon: const Icon(Icons.delete_outline)
-                )
-              ]
-            )
-          )
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+          ),
         );
-      }
+      },
     );
   }
 
@@ -448,8 +449,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
         name: _nameController.text.trim(),
         quantity: _normalizedOptionalText(_quantityController.text),
         unit: _normalizedOptionalText(_unitController.text),
-        isChecked: _isChecked
-      )
+        isChecked: _isChecked,
+      ),
     );
   }
 
@@ -487,18 +488,18 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   }
 
                   return null;
-                }
+                },
               ),
               TextFormField(
                 controller: _quantityController,
                 decoration: const InputDecoration(labelText: 'Quantity'),
-                textInputAction: TextInputAction.next
+                textInputAction: TextInputAction.next,
               ),
               TextFormField(
                 controller: _unitController,
                 decoration: const InputDecoration(labelText: 'Unit'),
                 textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _submit()
+                onFieldSubmitted: (_) => _submit(),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -508,22 +509,22 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   setState(() {
                     _isChecked = value;
                   });
-                }
-              )
-            ]
-          )
-        )
+                },
+              ),
+            ],
+          ),
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel')
+          child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('Save')
-        )
-      ]
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
@@ -570,7 +571,7 @@ class _ShareListDialogState extends State<_ShareListDialog> {
           autofocus: true,
           decoration: const InputDecoration(
             labelText: 'User email',
-            hintText: 'second-user@example.com'
+            hintText: 'second-user@example.com',
           ),
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.done,
@@ -589,19 +590,19 @@ class _ShareListDialogState extends State<_ShareListDialog> {
             }
 
             return null;
-          }
-        )
+          },
+        ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel')
+          child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('Share')
-        )
-      ]
+          child: const Text('Share'),
+        ),
+      ],
     );
   }
 }

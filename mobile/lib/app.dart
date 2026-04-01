@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'core/network/api_client.dart';
-import 'features/lists/lists_overview_page.dart';
+import 'features/auth/app_home_page.dart';
+import 'features/auth/auth_page.dart';
+import 'features/auth/auth_repository.dart';
+import 'features/auth/auth_session_store.dart';
+import 'features/auth/session_controller.dart';
 
 class ZakupyApp extends StatelessWidget {
   const ZakupyApp({super.key});
@@ -12,140 +15,112 @@ class ZakupyApp extends StatelessWidget {
       title: 'Zakupy',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6B3B)),
-        useMaterial3: true
+        useMaterial3: true,
       ),
-      home: const _LauncherPage()
+      home: const _AppBootstrapper(),
     );
   }
 }
 
-class _LauncherPage extends StatefulWidget {
-  const _LauncherPage();
+class _AppBootstrapper extends StatefulWidget {
+  const _AppBootstrapper();
 
   @override
-  State<_LauncherPage> createState() => _LauncherPageState();
+  State<_AppBootstrapper> createState() => _AppBootstrapperState();
 }
 
-class _LauncherPageState extends State<_LauncherPage> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _baseUrlController;
-  late final TextEditingController _accessTokenController;
+class _AppBootstrapperState extends State<_AppBootstrapper> {
+  late final SessionController _sessionController;
+  final AuthRepository _authRepository = const AuthRepository();
+  bool _bootstrapComplete = false;
 
   @override
   void initState() {
     super.initState();
-    _baseUrlController = TextEditingController(text: 'http://localhost:3000');
-    _accessTokenController = TextEditingController();
+    _sessionController = SessionController(
+      sessionStore: SecureAuthSessionStore(),
+      authRepository: _authRepository,
+    );
+    _restoreSession();
   }
 
   @override
   void dispose() {
-    _baseUrlController.dispose();
-    _accessTokenController.dispose();
+    _sessionController.dispose();
     super.dispose();
   }
 
-  void _openLists() {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+  Future<void> _restoreSession() async {
+    await _sessionController.bootstrap();
+
+    if (!mounted) {
       return;
     }
 
-    final apiClient = ApiClient(
-      baseUrl: _baseUrlController.text,
-      accessToken: _accessTokenController.text.trim()
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => ListsOverviewPage(apiClient: apiClient)
-      )
-    );
+    setState(() {
+      _bootstrapComplete = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return ValueListenableBuilder<SessionState>(
+      valueListenable: _sessionController,
+      builder: (context, state, _) {
+        if (!_bootstrapComplete) {
+          return const _BootstrapLoadingPage();
+        }
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.colorScheme.primaryContainer.withOpacity(0.85),
-              theme.colorScheme.surface
-            ]
-          )
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              margin: const EdgeInsets.all(24),
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Zakupy',
-                        style: theme.textTheme.headlineMedium
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Connect to your private backend and browse your shopping lists.',
-                        style: theme.textTheme.bodyMedium
-                      ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _baseUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'API base URL'
-                        ),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
+        if (state.status == SessionStatus.authenticated) {
+          return AppHomePage(
+            session: state.session!,
+            authRepository: _authRepository,
+            onLogout: _sessionController.logout,
+          );
+        }
 
-                          if (trimmed.isEmpty) {
-                            return 'API base URL is required';
-                          }
+        return AuthPage(
+          isSubmitting: state.status == SessionStatus.loading,
+          errorMessage: state.errorMessage,
+          onLogin: ({
+            required String baseUrl,
+            required String email,
+            required String password,
+          }) {
+            return _sessionController.login(
+              baseUrl: baseUrl,
+              email: email,
+              password: password,
+            );
+          },
+          onRegister: ({
+            required String baseUrl,
+            required String email,
+            required String password,
+            required String displayName,
+          }) {
+            return _sessionController.register(
+              baseUrl: baseUrl,
+              email: email,
+              password: password,
+              displayName: displayName,
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
-                          return null;
-                        }
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _accessTokenController,
-                        decoration: const InputDecoration(
-                          labelText: 'Access token'
-                        ),
-                        validator: (value) {
-                          final trimmed = value?.trim() ?? '';
+class _BootstrapLoadingPage extends StatelessWidget {
+  const _BootstrapLoadingPage();
 
-                          if (trimmed.isEmpty) {
-                            return 'Access token is required';
-                          }
-
-                          return null;
-                        }
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: _openLists,
-                        child: const Text('Open my lists')
-                      )
-                    ]
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }

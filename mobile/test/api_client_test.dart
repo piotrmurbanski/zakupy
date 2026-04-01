@@ -1,9 +1,50 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/core/network/api_client.dart';
+import 'package:zakupy_mobile/features/auth/auth_models.dart';
+
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this.responseBody);
+
+  final ResponseBody responseBody;
+  RequestOptions? lastRequest;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    lastRequest = options;
+    return responseBody;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
+  test('AuthSession and AuthUser parse the authenticated user payload', () {
+    final authResponse = AuthSession.fromJson({
+      'accessToken': 'jwt-token',
+      'user': {
+        'id': 'user_1',
+        'email': 'test@example.com',
+        'displayName': 'Piotr',
+        'createdAt': '2026-03-30T10:00:00.000Z',
+        'updatedAt': '2026-03-30T10:00:00.000Z'
+      }
+    });
+
+    expect(authResponse.accessToken, 'jwt-token');
+    expect(authResponse.user.email, 'test@example.com');
+    expect(authResponse.user.displayName, 'Piotr');
+  });
+
   test('ShoppingList.fromJson parses API payloads', () {
     final list = ShoppingList.fromJson({
       'id': 'list_1',
@@ -35,6 +76,38 @@ void main() {
 
     expect(member.user.email, 'second-user@example.com');
     expect(member.role, 'editor');
+  });
+
+  test('ApiException prefers backend message from Dio responses', () {
+    final authException = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/login'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/auth/login'),
+          statusCode: 401,
+          data: {'message': 'Invalid email or password'},
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    expect(authException.message, 'Invalid email or password');
+    expect(authException.statusCode, 401);
+
+    final memberException = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/lists/list_1/members'),
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/lists/list_1/members'),
+          statusCode: 409,
+          data: {'message': 'User is already a member of this list'},
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    expect(memberException.message, 'User is already a member of this list');
+    expect(memberException.statusCode, 409);
   });
 
   test('ShoppingListItem.fromJson parses API payloads', () {
@@ -72,7 +145,7 @@ void main() {
       sortOrder: 1,
       createdByUserId: 'user_1',
       createdAt: DateTime(2026, 3, 30, 10),
-      updatedAt: DateTime(2026, 3, 30, 10)
+      updatedAt: DateTime(2026, 3, 30, 10),
     );
 
     expect(item.toDraft().toJson(), {
@@ -88,7 +161,7 @@ void main() {
       name: 'Milk',
       quantity: '1',
       unit: 'l',
-      isChecked: false
+      isChecked: false,
     );
 
     final updated = draft.copyWith(isChecked: true);
@@ -99,24 +172,42 @@ void main() {
     expect(updated.isChecked, true);
   });
 
-  test('ApiException.fromDio prefers backend validation messages', () {
-    final exception = DioException(
-      requestOptions: RequestOptions(path: '/lists/list_1/members'),
-      response: Response<Map<String, dynamic>>(
-        requestOptions: RequestOptions(path: '/lists/list_1/members'),
-        statusCode: 409,
-        data: {
-          'statusCode': 409,
-          'error': 'Conflict',
-          'message': 'User is already a member of this list'
-        }
+  test('ApiClient login sends credentials and parses the auth session', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'accessToken': 'jwt-token',
+          'user': {
+            'id': 'user_1',
+            'email': 'test@example.com',
+            'displayName': 'Test User',
+            'createdAt': '2026-03-30T10:00:00.000Z',
+            'updatedAt': '2026-03-30T10:00:00.000Z'
+          }
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        },
       ),
-      type: DioExceptionType.badResponse
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(baseUrl: 'http://localhost:3000/', dio: dio);
+    final session = await client.login(
+      email: 'test@example.com',
+      password: 'supersecret123',
     );
 
-    final apiException = ApiException.fromDio(exception);
-
-    expect(apiException.message, 'User is already a member of this list');
-    expect(apiException.statusCode, 409);
+    expect(adapter.lastRequest?.path, '/auth/login');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data, {
+      'email': 'test@example.com',
+      'password': 'supersecret123'
+    });
+    expect(adapter.lastRequest?.headers['Authorization'], isNull);
+    expect(session.accessToken, 'jwt-token');
+    expect(session.user.email, 'test@example.com');
   });
 }
