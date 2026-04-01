@@ -7,14 +7,14 @@ class ApiClient {
     required String baseUrl,
     String accessToken = '',
     Dio? dio,
-  })  : _baseUrl = _normalizeBaseUrl(baseUrl),
+  })  : _baseUrl = normalizeBaseUrl(baseUrl),
         _dio = dio ?? Dio() {
     _dio.options = _dio.options.copyWith(
       baseUrl: _baseUrl,
       headers: {
         ..._dio.options.headers,
-        ..._buildHeaders(accessToken)
-      }
+        ..._buildHeaders(accessToken),
+      },
     );
   }
 
@@ -24,23 +24,8 @@ class ApiClient {
   ApiClient withAccessToken(String accessToken) {
     return ApiClient(
       baseUrl: _baseUrl,
-      accessToken: accessToken
+      accessToken: accessToken,
     );
-  }
-
-  Future<AuthSession> login({
-    required String email,
-    required String password,
-  }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/auth/login',
-      data: {
-        'email': email,
-        'password': password
-      }
-    );
-
-    return _authSessionFromResponse(response.data);
   }
 
   Future<AuthSession> register({
@@ -48,71 +33,120 @@ class ApiClient {
     required String password,
     required String displayName,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/auth/register',
-      data: {
-        'email': email,
-        'password': password,
-        'displayName': displayName
-      }
-    );
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/register',
+        data: {
+          'email': email,
+          'password': password,
+          'displayName': displayName,
+        },
+      );
 
-    return _authSessionFromResponse(response.data);
+      return _authSessionFromResponse(response.data);
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
+  }
+
+  Future<AuthSession> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/login',
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      return _authSessionFromResponse(response.data);
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   Future<AuthUser> fetchCurrentUser() async {
-    final response = await _dio.get<Map<String, dynamic>>('/auth/me');
-    return AuthUser.fromJson(_readObject(response.data, 'user'));
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+      return AuthUser.fromJson(_readObject(response.data, 'user'));
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
-    final response = await _dio.get<Map<String, dynamic>>('/lists/$listId/items');
-    final items = (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
-        .cast<Map<String, dynamic>>();
+    try {
+      final response =
+          await _dio.get<Map<String, dynamic>>('/lists/$listId/items');
+      final items =
+          (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>();
 
-    return items.map(ShoppingListItem.fromJson).toList(growable: false);
+      return items.map(ShoppingListItem.fromJson).toList(growable: false);
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   Future<ShoppingListItem> createItem(String listId, ItemDraft draft) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/lists/$listId/items',
-      data: draft.toJson()
-    );
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/lists/$listId/items',
+        data: draft.toJson(),
+      );
 
-    return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
+      return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
-  Future<ShoppingListItem> updateItem(String listId, String itemId, ItemDraft draft) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
-      '/lists/$listId/items/$itemId',
-      data: draft.toJson()
-    );
+  Future<ShoppingListItem> updateItem(
+    String listId,
+    String itemId,
+    ItemDraft draft,
+  ) async {
+    try {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/lists/$listId/items/$itemId',
+        data: draft.toJson(),
+      );
 
-    return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
+      return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   Future<ListMember> addListMember(String listId, String email) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/lists/$listId/members',
-      data: {
-        'email': email
-      }
-    );
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/lists/$listId/members',
+        data: {
+          'email': email,
+        },
+      );
 
-    return ListMember.fromJson(_readObject(response.data, 'member'));
+      return ListMember.fromJson(_readObject(response.data, 'member'));
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   Future<void> deleteItem(String listId, String itemId) async {
-    await _dio.delete<void>('/lists/$listId/items/$itemId');
-  }
-
-  static String _normalizeBaseUrl(String baseUrl) {
-    return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+    try {
+      await _dio.delete<void>('/lists/$listId/items/$itemId');
+    } on DioException catch (error) {
+      throw ApiException.fromDioException(error);
+    }
   }
 
   static Map<String, String> _buildHeaders(String accessToken) {
     final headers = <String, String>{
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     if (accessToken.trim().isNotEmpty) {
@@ -131,11 +165,14 @@ class ApiClient {
 
     return AuthSession(
       accessToken: accessToken,
-      user: AuthUser.fromJson(_readObject(payload, 'user'))
+      user: AuthUser.fromJson(_readObject(payload, 'user')),
     );
   }
 
-  static Map<String, dynamic> _readObject(Map<String, dynamic>? payload, String key) {
+  static Map<String, dynamic> _readObject(
+    Map<String, dynamic>? payload,
+    String key,
+  ) {
     final value = payload?[key];
 
     if (value is Map<String, dynamic>) {
@@ -150,12 +187,70 @@ class ApiClient {
   }
 }
 
+String normalizeBaseUrl(String baseUrl) {
+  return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+}
+
+class ApiException implements Exception {
+  const ApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  factory ApiException.fromDioException(DioException error) {
+    return ApiException(
+      _extractMessage(error),
+      statusCode: error.response?.statusCode,
+    );
+  }
+
+  static String _extractMessage(DioException error) {
+    final data = error.response?.data;
+
+    if (data is Map<String, dynamic>) {
+      final message = data['message'];
+
+      if (message is String && message.trim().isNotEmpty) {
+        return message;
+      }
+    }
+
+    if (data is Map) {
+      final dynamic message = data['message'];
+
+      if (message is String && message.trim().isNotEmpty) {
+        return message;
+      }
+    }
+
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'The server took too long to respond.';
+      case DioExceptionType.connectionError:
+        return 'Could not connect to the server.';
+      case DioExceptionType.cancel:
+        return 'The request was cancelled.';
+      case DioExceptionType.badCertificate:
+        return 'The server certificate is not trusted.';
+      case DioExceptionType.badResponse:
+        return 'The server returned an unexpected response.';
+      case DioExceptionType.unknown:
+        return error.message ?? 'Unexpected network error.';
+    }
+  }
+
+  @override
+  String toString() => message;
+}
+
 class ItemDraft {
   const ItemDraft({
     required this.name,
     this.quantity,
     this.unit,
-    this.isChecked = false
+    this.isChecked = false,
   });
 
   final String name;
@@ -167,13 +262,13 @@ class ItemDraft {
     String? name,
     String? quantity,
     String? unit,
-    bool? isChecked
+    bool? isChecked,
   }) {
     return ItemDraft(
       name: name ?? this.name,
       quantity: quantity ?? this.quantity,
       unit: unit ?? this.unit,
-      isChecked: isChecked ?? this.isChecked
+      isChecked: isChecked ?? this.isChecked,
     );
   }
 
@@ -182,7 +277,7 @@ class ItemDraft {
       'name': name,
       'quantity': quantity,
       'unit': unit,
-      'isChecked': isChecked
+      'isChecked': isChecked,
     };
   }
 }
@@ -198,7 +293,7 @@ class ShoppingListItem {
     required this.sortOrder,
     required this.createdByUserId,
     required this.createdAt,
-    required this.updatedAt
+    required this.updatedAt,
   });
 
   final String id;
@@ -223,7 +318,7 @@ class ShoppingListItem {
       sortOrder: json['sortOrder'] as int? ?? 0,
       createdByUserId: json['createdByUserId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String)
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 
@@ -232,7 +327,7 @@ class ShoppingListItem {
       name: name,
       quantity: quantity,
       unit: unit,
-      isChecked: isChecked
+      isChecked: isChecked,
     );
   }
 }
@@ -252,7 +347,7 @@ class ListMemberUser {
     return ListMemberUser(
       id: json['id'] as String,
       email: json['email'] as String,
-      displayName: json['displayName'] as String
+      displayName: json['displayName'] as String,
     );
   }
 }
@@ -265,7 +360,7 @@ class ListMember {
     required this.role,
     required this.user,
     required this.createdAt,
-    required this.updatedAt
+    required this.updatedAt,
   });
 
   final String id;
@@ -282,9 +377,11 @@ class ListMember {
       listId: json['listId'] as String,
       userId: json['userId'] as String,
       role: json['role'] as String,
-      user: ListMemberUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
+      user: ListMemberUser.fromJson(
+        Map<String, dynamic>.from(json['user'] as Map),
+      ),
       createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String)
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 }

@@ -1,11 +1,10 @@
 class AuthUser {
-  const AuthUser({
-    required this.id,
-    required this.email,
-    required this.displayName,
-    required this.createdAt,
-    required this.updatedAt
-  });
+  const AuthUser(
+      {required this.id,
+      required this.email,
+      required this.displayName,
+      required this.createdAt,
+      required this.updatedAt});
 
   final String id;
   final String email;
@@ -15,12 +14,11 @@ class AuthUser {
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     return AuthUser(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String)
-    );
+        id: json['id'] as String,
+        email: json['email'] as String,
+        displayName: json['displayName'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String));
   }
 
   Map<String, dynamic> toJson() {
@@ -44,16 +42,13 @@ class AuthSession {
   final AuthUser user;
 
   Map<String, dynamic> toJson() {
-    return {
-      'accessToken': accessToken,
-      'user': user.toJson()
-    };
+    return {'accessToken': accessToken, 'user': user.toJson()};
   }
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
     return AuthSession(
-      accessToken: json['accessToken'] as String,
-      user: AuthUser.fromJson(Map<String, dynamic>.from(json['user'] as Map))
-    );
+        accessToken: json['accessToken'] as String,
+        user:
+            AuthUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)));
   }
 }
