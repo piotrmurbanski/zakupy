@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
-import 'session_store.dart';
+import 'auth_session_store.dart';
 
 class AppHomePage extends StatefulWidget {
   const AppHomePage(
@@ -11,7 +11,7 @@ class AppHomePage extends StatefulWidget {
       required this.onLogout,
       super.key});
 
-  final AppSession session;
+  final StoredAuthSession session;
   final AuthRepository authRepository;
   final Future<void> Function() onLogout;
 
@@ -92,10 +92,10 @@ class _AppHomePageState extends State<AppHomePage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                            'Signed in as ${widget.session.user.displayName}',
+                                            'Signed in as ${widget.session.session.user.displayName}',
                                             style: theme.textTheme.titleLarge),
                                         const SizedBox(height: 8),
-                                        Text(widget.session.user.email),
+                                        Text(widget.session.session.user.email),
                                         const SizedBox(height: 4),
                                         Text(widget.session.baseUrl,
                                             style: theme.textTheme.bodySmall)

@@ -1,11 +1,35 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/core/network/api_client.dart';
+import 'package:zakupy_mobile/features/auth/auth_models.dart';
+
+class _RecordingAdapter implements HttpClientAdapter {
+  _RecordingAdapter(this.responseBody);
+
+  final ResponseBody responseBody;
+  RequestOptions? lastRequest;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    lastRequest = options;
+    return responseBody;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
-  test('AuthResponse.fromJson parses the authenticated user payload', () {
-    final authResponse = AuthResponse.fromJson({
+  test('AuthSession and AuthUser parse the authenticated user payload', () {
+    final authResponse = AuthSession.fromJson({
       'accessToken': 'jwt-token',
       'user': {
         'id': 'user_1',
@@ -86,5 +110,38 @@ void main() {
     expect(updated.quantity, '1');
     expect(updated.unit, 'l');
     expect(updated.isChecked, true);
+  });
+
+  test('ApiClient login sends credentials and parses the auth session',
+      () async {
+    final adapter = _RecordingAdapter(ResponseBody.fromString(
+        jsonEncode({
+          'accessToken': 'jwt-token',
+          'user': {
+            'id': 'user_1',
+            'email': 'test@example.com',
+            'displayName': 'Test User',
+            'createdAt': '2026-03-30T10:00:00.000Z',
+            'updatedAt': '2026-03-30T10:00:00.000Z'
+          }
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType]
+        }));
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(baseUrl: 'http://localhost:3000/', dio: dio);
+    final session = await client.login(
+        email: 'test@example.com', password: 'supersecret123');
+
+    expect(adapter.lastRequest?.path, '/auth/login');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data,
+        {'email': 'test@example.com', 'password': 'supersecret123'});
+    expect(adapter.lastRequest?.headers['Authorization'], isNull);
+    expect(session.accessToken, 'jwt-token');
+    expect(session.user.email, 'test@example.com');
   });
 }

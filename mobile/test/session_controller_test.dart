@@ -1,9 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/core/network/api_client.dart';
+import 'package:zakupy_mobile/features/auth/auth_models.dart';
 import 'package:zakupy_mobile/features/auth/auth_repository.dart';
+import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 import 'package:zakupy_mobile/features/auth/session_controller.dart';
-import 'package:zakupy_mobile/features/auth/session_store.dart';
 
 void main() {
   late _InMemorySessionStore sessionStore;
@@ -19,24 +20,23 @@ void main() {
 
   test('bootstrap restores a saved session and refreshes the user', () async {
     final staleUser = _buildUser(displayName: 'Old Name');
-    await sessionStore.write(AppSession(
+    await sessionStore.write(StoredAuthSession(
         baseUrl: 'http://localhost:3000',
-        accessToken: 'saved-token',
-        user: staleUser));
+        session: AuthSession(accessToken: 'saved-token', user: staleUser)));
     authRepository.currentUser = _buildUser(displayName: 'Fresh Name');
 
     await controller.bootstrap();
 
     expect(controller.value.status, SessionStatus.authenticated);
-    expect(controller.value.session?.user.displayName, 'Fresh Name');
-    expect(sessionStore.savedSession?.user.displayName, 'Fresh Name');
+    expect(controller.value.session?.session.user.displayName, 'Fresh Name');
+    expect(sessionStore.savedSession?.session.user.displayName, 'Fresh Name');
   });
 
   test('bootstrap clears an invalid saved session', () async {
-    await sessionStore.write(AppSession(
+    await sessionStore.write(StoredAuthSession(
         baseUrl: 'http://localhost:3000',
-        accessToken: 'expired-token',
-        user: _buildUser()));
+        session:
+            AuthSession(accessToken: 'expired-token', user: _buildUser())));
     authRepository.currentUserError =
         const ApiException('User not found', statusCode: 401);
 
@@ -48,7 +48,7 @@ void main() {
   });
 
   test('login persists the authenticated session', () async {
-    authRepository.loginResponse = AuthResponse(
+    authRepository.loginResponse = AuthSession(
         accessToken: 'new-token', user: _buildUser(displayName: 'Tester'));
 
     await controller.login(
@@ -58,8 +58,8 @@ void main() {
 
     expect(controller.value.status, SessionStatus.authenticated);
     expect(controller.value.session?.baseUrl, 'http://localhost:3000');
-    expect(controller.value.session?.accessToken, 'new-token');
-    expect(sessionStore.savedSession?.user.displayName, 'Tester');
+    expect(controller.value.session?.session.accessToken, 'new-token');
+    expect(sessionStore.savedSession?.session.user.displayName, 'Tester');
   });
 
   test('register surfaces backend errors without persisting a session',
@@ -81,16 +81,16 @@ void main() {
   });
 }
 
-class _InMemorySessionStore extends SessionStore {
+class _InMemorySessionStore extends InMemoryAuthSessionStore {
   _InMemorySessionStore();
 
-  AppSession? savedSession;
+  StoredAuthSession? savedSession;
 
   @override
-  Future<AppSession?> read() async => savedSession;
+  Future<StoredAuthSession?> read() async => savedSession;
 
   @override
-  Future<void> write(AppSession session) async {
+  Future<void> write(StoredAuthSession session) async {
     savedSession = session;
   }
 
@@ -101,15 +101,15 @@ class _InMemorySessionStore extends SessionStore {
 }
 
 class _FakeAuthRepository extends AuthRepository {
-  AuthResponse? loginResponse;
-  AuthResponse? registerResponse;
-  AuthenticatedUser? currentUser;
+  AuthSession? loginResponse;
+  AuthSession? registerResponse;
+  AuthUser? currentUser;
   ApiException? loginError;
   ApiException? registerError;
   ApiException? currentUserError;
 
   @override
-  Future<AuthResponse> login(
+  Future<AuthSession> login(
       {required String baseUrl,
       required String email,
       required String password}) async {
@@ -118,11 +118,11 @@ class _FakeAuthRepository extends AuthRepository {
     }
 
     return loginResponse ??
-        AuthResponse(accessToken: 'token', user: _buildUser());
+        AuthSession(accessToken: 'token', user: _buildUser());
   }
 
   @override
-  Future<AuthResponse> register(
+  Future<AuthSession> register(
       {required String baseUrl,
       required String email,
       required String password,
@@ -132,12 +132,12 @@ class _FakeAuthRepository extends AuthRepository {
     }
 
     return registerResponse ??
-        AuthResponse(
+        AuthSession(
             accessToken: 'token', user: _buildUser(displayName: displayName));
   }
 
   @override
-  Future<AuthenticatedUser> fetchCurrentUser(
+  Future<AuthUser> fetchCurrentUser(
       {required String baseUrl, required String accessToken}) async {
     if (currentUserError != null) {
       throw currentUserError!;
@@ -147,8 +147,8 @@ class _FakeAuthRepository extends AuthRepository {
   }
 }
 
-AuthenticatedUser _buildUser({String displayName = 'Test User'}) {
-  return AuthenticatedUser(
+AuthUser _buildUser({String displayName = 'Test User'}) {
+  return AuthUser(
       id: 'user_1',
       email: 'test@example.com',
       displayName: displayName,

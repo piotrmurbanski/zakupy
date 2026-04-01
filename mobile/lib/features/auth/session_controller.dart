@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_client.dart';
 import 'auth_repository.dart';
-import 'session_store.dart';
+import 'auth_session_store.dart';
+import 'auth_models.dart';
 
 enum SessionStatus { loading, authenticated, unauthenticated }
 
@@ -11,7 +12,7 @@ class SessionState {
 
   const SessionState.loading() : this._(status: SessionStatus.loading);
 
-  const SessionState.authenticated(AppSession session)
+  const SessionState.authenticated(StoredAuthSession session)
       : this._(status: SessionStatus.authenticated, session: session);
 
   const SessionState.unauthenticated({String? errorMessage})
@@ -19,19 +20,19 @@ class SessionState {
             status: SessionStatus.unauthenticated, errorMessage: errorMessage);
 
   final SessionStatus status;
-  final AppSession? session;
+  final StoredAuthSession? session;
   final String? errorMessage;
 }
 
 class SessionController extends ValueNotifier<SessionState> {
-  SessionController(
-      {required SessionStore sessionStore,
-      required AuthRepository authRepository})
-      : _sessionStore = sessionStore,
+  SessionController({
+    required AuthSessionStore sessionStore,
+    required AuthRepository authRepository,
+  })  : _sessionStore = sessionStore,
         _authRepository = authRepository,
         super(const SessionState.loading());
 
-  final SessionStore _sessionStore;
+  final AuthSessionStore _sessionStore;
   final AuthRepository _authRepository;
 
   Future<void> bootstrap() async {
@@ -47,11 +48,13 @@ class SessionController extends ValueNotifier<SessionState> {
     try {
       final user = await _authRepository.fetchCurrentUser(
           baseUrl: storedSession.baseUrl,
-          accessToken: storedSession.accessToken);
-      final session = AppSession(
+          accessToken: storedSession.session.accessToken);
+      final session = StoredAuthSession(
           baseUrl: storedSession.baseUrl,
-          accessToken: storedSession.accessToken,
-          user: user);
+          session: AuthSession(
+            accessToken: storedSession.session.accessToken,
+            user: user,
+          ));
 
       await _sessionStore.write(session);
       value = SessionState.authenticated(session);
@@ -74,10 +77,8 @@ class SessionController extends ValueNotifier<SessionState> {
     try {
       final response = await _authRepository.login(
           baseUrl: baseUrl, email: email, password: password);
-      final session = AppSession(
-          baseUrl: normalizeBaseUrl(baseUrl),
-          accessToken: response.accessToken,
-          user: response.user);
+      final session = StoredAuthSession(
+          baseUrl: normalizeBaseUrl(baseUrl), session: response);
 
       await _sessionStore.write(session);
       value = SessionState.authenticated(session);
@@ -102,10 +103,8 @@ class SessionController extends ValueNotifier<SessionState> {
           email: email,
           password: password,
           displayName: displayName);
-      final session = AppSession(
-          baseUrl: normalizeBaseUrl(baseUrl),
-          accessToken: response.accessToken,
-          user: response.user);
+      final session = StoredAuthSession(
+          baseUrl: normalizeBaseUrl(baseUrl), session: response);
 
       await _sessionStore.write(session);
       value = SessionState.authenticated(session);
