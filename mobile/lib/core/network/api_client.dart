@@ -1,22 +1,69 @@
 import 'package:dio/dio.dart';
 
+import '../../features/auth/auth_models.dart';
+
 class ApiClient {
   ApiClient({
     required String baseUrl,
-    required String accessToken,
+    String accessToken = '',
     Dio? dio,
-  }) : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: _normalizeBaseUrl(baseUrl),
-                headers: {
-                  'Authorization': 'Bearer $accessToken',
-                  'Content-Type': 'application/json'
-                }
-              )
-            );
+  })  : _baseUrl = _normalizeBaseUrl(baseUrl),
+        _dio = dio ?? Dio() {
+    _dio.options = _dio.options.copyWith(
+      baseUrl: _baseUrl,
+      headers: {
+        ..._dio.options.headers,
+        ..._buildHeaders(accessToken)
+      }
+    );
+  }
 
+  final String _baseUrl;
   final Dio _dio;
+
+  ApiClient withAccessToken(String accessToken) {
+    return ApiClient(
+      baseUrl: _baseUrl,
+      accessToken: accessToken
+    );
+  }
+
+  Future<AuthSession> login({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/login',
+      data: {
+        'email': email,
+        'password': password
+      }
+    );
+
+    return _authSessionFromResponse(response.data);
+  }
+
+  Future<AuthSession> register({
+    required String email,
+    required String password,
+    required String displayName,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/register',
+      data: {
+        'email': email,
+        'password': password,
+        'displayName': displayName
+      }
+    );
+
+    return _authSessionFromResponse(response.data);
+  }
+
+  Future<AuthUser> fetchCurrentUser() async {
+    final response = await _dio.get<Map<String, dynamic>>('/auth/me');
+    return AuthUser.fromJson(_readObject(response.data, 'user'));
+  }
 
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
     final response = await _dio.get<Map<String, dynamic>>('/lists/$listId/items');
@@ -44,12 +91,48 @@ class ApiClient {
     return ShoppingListItem.fromJson(_readObject(response.data, 'item'));
   }
 
+  Future<ListMember> addListMember(String listId, String email) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/lists/$listId/members',
+      data: {
+        'email': email
+      }
+    );
+
+    return ListMember.fromJson(_readObject(response.data, 'member'));
+  }
+
   Future<void> deleteItem(String listId, String itemId) async {
     await _dio.delete<void>('/lists/$listId/items/$itemId');
   }
 
   static String _normalizeBaseUrl(String baseUrl) {
     return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+  }
+
+  static Map<String, String> _buildHeaders(String accessToken) {
+    final headers = <String, String>{
+      'Content-Type': 'application/json'
+    };
+
+    if (accessToken.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    }
+
+    return headers;
+  }
+
+  static AuthSession _authSessionFromResponse(Map<String, dynamic>? payload) {
+    final accessToken = payload?['accessToken'];
+
+    if (accessToken is! String || accessToken.trim().isEmpty) {
+      throw StateError('Missing accessToken in API response');
+    }
+
+    return AuthSession(
+      accessToken: accessToken,
+      user: AuthUser.fromJson(_readObject(payload, 'user'))
+    );
   }
 
   static Map<String, dynamic> _readObject(Map<String, dynamic>? payload, String key) {
@@ -150,6 +233,58 @@ class ShoppingListItem {
       quantity: quantity,
       unit: unit,
       isChecked: isChecked
+    );
+  }
+}
+
+class ListMemberUser {
+  const ListMemberUser({
+    required this.id,
+    required this.email,
+    required this.displayName,
+  });
+
+  final String id;
+  final String email;
+  final String displayName;
+
+  factory ListMemberUser.fromJson(Map<String, dynamic> json) {
+    return ListMemberUser(
+      id: json['id'] as String,
+      email: json['email'] as String,
+      displayName: json['displayName'] as String
+    );
+  }
+}
+
+class ListMember {
+  const ListMember({
+    required this.id,
+    required this.listId,
+    required this.userId,
+    required this.role,
+    required this.user,
+    required this.createdAt,
+    required this.updatedAt
+  });
+
+  final String id;
+  final String listId;
+  final String userId;
+  final String role;
+  final ListMemberUser user;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory ListMember.fromJson(Map<String, dynamic> json) {
+    return ListMember(
+      id: json['id'] as String,
+      listId: json['listId'] as String,
+      userId: json['userId'] as String,
+      role: json['role'] as String,
+      user: ListMemberUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String)
     );
   }
 }

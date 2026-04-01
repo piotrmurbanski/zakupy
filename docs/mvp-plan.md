@@ -56,6 +56,5 @@ Completed in this branch:
 - refresh-based sync after writes
 
 Remaining for the MVP:
-- mobile auth flow
 - list sharing UI on mobile
 - end-to-end testing on real devices
