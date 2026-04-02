@@ -98,10 +98,42 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final maxSortOrder = _items.isEmpty
+        ? -1
+        : _items
+            .map((item) => item.sortOrder)
+            .reduce((current, next) => current > next ? current : next);
+    final temporaryId = '_tmp_${DateTime.now().microsecondsSinceEpoch}';
+    final now = DateTime.now();
+    final temporaryItem = ShoppingListItem(
+      id: temporaryId,
+      listId: widget.listId,
+      name: draft.name,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      isChecked: draft.isChecked,
+      sortOrder: maxSortOrder + 1,
+      createdByUserId: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    if (mounted) {
+      setState(() {
+        _items.add(temporaryItem);
+      });
+    }
+
     try {
       await widget.apiClient.createItem(widget.listId, draft);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _items.removeWhere((item) => item.id == temporaryId);
+        });
+      }
+
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
         return;
@@ -110,7 +142,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
       if (!mounted) {
         return;
       }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not add item: ${error.message}')),
       );
@@ -129,10 +160,41 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final previousItem = item;
+    final optimisticItem = ShoppingListItem(
+      id: item.id,
+      listId: item.listId,
+      name: draft.name,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      isChecked: draft.isChecked,
+      sortOrder: item.sortOrder,
+      createdByUserId: item.createdByUserId,
+      createdAt: item.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    if (mounted) {
+      final index = _items.indexWhere((current) => current.id == item.id);
+      if (index >= 0) {
+        setState(() {
+          _items[index] = optimisticItem;
+        });
+      }
+    }
+
     try {
       await widget.apiClient.updateItem(widget.listId, item.id, draft);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
+      if (mounted) {
+        final index = _items.indexWhere((current) => current.id == item.id);
+        if (index >= 0) {
+          setState(() {
+            _items[index] = previousItem;
+          });
+        }
+      }
+
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
         return;
@@ -153,6 +215,28 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final previousItem = item;
+    final optimisticItem = ShoppingListItem(
+      id: item.id,
+      listId: item.listId,
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      isChecked: checked,
+      sortOrder: item.sortOrder,
+      createdByUserId: item.createdByUserId,
+      createdAt: item.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    if (mounted) {
+      final index = _items.indexWhere((current) => current.id == item.id);
+      if (index >= 0) {
+        setState(() {
+          _items[index] = optimisticItem;
+        });
+      }
+    }
+
     try {
       await widget.apiClient.updateItem(
         widget.listId,
@@ -161,6 +245,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
       );
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
+      if (mounted) {
+        final index = _items.indexWhere((current) => current.id == item.id);
+        if (index >= 0) {
+          setState(() {
+            _items[index] = previousItem;
+          });
+        }
+      }
+
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
         return;
@@ -201,10 +294,25 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final previousItems = List<ShoppingListItem>.from(_items);
+    if (mounted) {
+      setState(() {
+        _items.removeWhere((current) => current.id == item.id);
+      });
+    }
+
     try {
       await widget.apiClient.deleteItem(widget.listId, item.id);
       await _reloadItems(silent: true);
     } on ApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _items
+            ..clear()
+            ..addAll(previousItems);
+        });
+      }
+
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
         return;
