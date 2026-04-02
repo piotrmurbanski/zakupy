@@ -26,11 +26,14 @@ class ListDetailPage extends StatefulWidget {
 class _ListDetailPageState extends State<ListDetailPage> {
   final List<ShoppingListItem> _items = <ShoppingListItem>[];
   final Set<String> _pendingItemIds = <String>{};
+  final Map<String, _PendingItemMutation> _pendingItemMutations =
+      <String, _PendingItemMutation>{};
 
   bool _isLoading = true;
   bool _isSharing = false;
   bool _didMutateItems = false;
   String? _errorMessage;
+  int _temporaryItemCounter = 0;
   Timer? _refreshTimer;
 
   @override
@@ -66,9 +69,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       setState(() {
+        final reconciledItems = _mergeFetchedItems(items);
         _items
           ..clear()
-          ..addAll(items);
+          ..addAll(reconciledItems);
         _isLoading = false;
         _errorMessage = null;
       });
@@ -101,15 +105,39 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final temporaryId = _nextTemporaryItemId();
+    final optimisticItem = _buildOptimisticItem(
+      id: temporaryId,
+      draft: draft,
+      sortOrder: _nextSortOrder(),
+    );
+
+    setState(() {
+      _didMutateItems = true;
+      _pendingItemIds.add(temporaryId);
+      _pendingItemMutations[temporaryId] = _PendingItemMutation.create(
+        optimisticItem: optimisticItem,
+      );
+      _items.add(optimisticItem);
+      _sortItems();
+    });
+
     try {
-      final createdItem = await widget.apiClient.createItem(widget.listId, draft);
+      final createdItem =
+          await widget.apiClient.createItem(widget.listId, draft);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _didMutateItems = true;
+        _pendingItemIds.remove(temporaryId);
+        _pendingItemMutations.remove(temporaryId);
+        removeById(
+          target: _items,
+          id: temporaryId,
+          idOf: (item) => item.id,
+        );
         upsertById(
           target: _items,
           value: createdItem,
@@ -126,6 +154,16 @@ class _ListDetailPageState extends State<ListDetailPage> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        _pendingItemIds.remove(temporaryId);
+        _pendingItemMutations.remove(temporaryId);
+        removeById(
+          target: _items,
+          id: temporaryId,
+          idOf: (item) => item.id,
+        );
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not add item: ${error.message}')),
@@ -145,6 +183,30 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
+    if (existingIndex == -1) {
+      return;
+    }
+
+    final previousItem = _items[existingIndex];
+    final optimisticItem = previousItem.copyWith(
+      name: draft.name,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      isChecked: draft.isChecked,
+    );
+
+    setState(() {
+      _didMutateItems = true;
+      _pendingItemIds.add(item.id);
+      _pendingItemMutations[item.id] = _PendingItemMutation.update(
+        previousItem: previousItem,
+        optimisticItem: optimisticItem,
+      );
+      _items[existingIndex] = optimisticItem;
+      _sortItems();
+    });
+
     try {
       final updatedItem = await widget.apiClient.updateItem(
         widget.listId,
@@ -157,7 +219,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       setState(() {
-        _didMutateItems = true;
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
         upsertById(
           target: _items,
           value: updatedItem,
@@ -174,6 +237,17 @@ class _ListDetailPageState extends State<ListDetailPage> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
+        upsertById(
+          target: _items,
+          value: previousItem,
+          idOf: (entry) => entry.id,
+        );
+        _sortItems();
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not save item: ${error.message}')),
@@ -192,13 +266,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     final optimisticItem = _items[existingIndex].toDraft().copyWith(
-      isChecked: checked,
-    );
+          isChecked: checked,
+        );
     final previousItem = _items[existingIndex];
 
     setState(() {
       _pendingItemIds.add(item.id);
+      _pendingItemMutations[item.id] = _PendingItemMutation.update(
+        previousItem: previousItem,
+        optimisticItem: previousItem.copyWith(isChecked: checked),
+      );
       _items[existingIndex] = previousItem.copyWith(isChecked: checked);
+      _sortItems();
     });
 
     try {
@@ -215,7 +294,12 @@ class _ListDetailPageState extends State<ListDetailPage> {
       setState(() {
         _didMutateItems = true;
         _pendingItemIds.remove(item.id);
-        _items[existingIndex] = updatedItem;
+        _pendingItemMutations.remove(item.id);
+        upsertById(
+          target: _items,
+          value: updatedItem,
+          idOf: (entry) => entry.id,
+        );
         _sortItems();
       });
     } on ApiException catch (error) {
@@ -230,7 +314,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
       setState(() {
         _pendingItemIds.remove(item.id);
-        _items[existingIndex] = previousItem;
+        _pendingItemMutations.remove(item.id);
+        upsertById(
+          target: _items,
+          value: previousItem,
+          idOf: (entry) => entry.id,
+        );
+        _sortItems();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -264,6 +354,22 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
+    if (existingIndex == -1) {
+      return;
+    }
+
+    final previousItem = _items[existingIndex];
+
+    setState(() {
+      _didMutateItems = true;
+      _pendingItemIds.add(item.id);
+      _pendingItemMutations[item.id] = _PendingItemMutation.delete(
+        previousItem: previousItem,
+      );
+      _items.removeAt(existingIndex);
+    });
+
     try {
       await widget.apiClient.deleteItem(widget.listId, item.id);
 
@@ -272,7 +378,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       setState(() {
-        _didMutateItems = true;
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
         removeById(
           target: _items,
           id: item.id,
@@ -288,6 +395,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
+        _items.add(previousItem);
+        _sortItems();
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not delete item: ${error.message}')),
@@ -354,10 +468,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
   Widget build(BuildContext context) {
     final title = widget.listName ?? 'List ${widget.listId}';
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope<bool>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
         Navigator.of(context).pop(_didMutateItems);
-        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -445,13 +563,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
       child: ListTile(
         leading: Checkbox(
           value: item.isChecked,
-          onChanged: isPending ? null : (checked) => _onToggleRequested(item, checked),
+          onChanged:
+              isPending ? null : (checked) => _onToggleRequested(item, checked),
         ),
         title: Text(
           item.name,
           style: TextStyle(
-            decoration:
-                item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+            decoration: item.isChecked
+                ? TextDecoration.lineThrough
+                : TextDecoration.none,
           ),
         ),
         subtitle: _buildSubtitle(item),
@@ -481,6 +601,91 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
       return left.createdAt.compareTo(right.createdAt);
     });
+  }
+
+  List<ShoppingListItem> _mergeFetchedItems(
+      List<ShoppingListItem> fetchedItems) {
+    final merged = List<ShoppingListItem>.from(fetchedItems);
+
+    for (final entry in _pendingItemMutations.entries) {
+      final itemId = entry.key;
+      final mutation = entry.value;
+
+      switch (mutation.type) {
+        case _PendingItemMutationType.create:
+          if (mutation.optimisticItem != null &&
+              merged.every((item) => item.id != itemId)) {
+            merged.add(mutation.optimisticItem!);
+          }
+          break;
+        case _PendingItemMutationType.update:
+          if (mutation.optimisticItem == null) {
+            break;
+          }
+
+          upsertById(
+            target: merged,
+            value: mutation.optimisticItem!,
+            idOf: (item) => item.id,
+          );
+          break;
+        case _PendingItemMutationType.delete:
+          removeById(
+            target: merged,
+            id: itemId,
+            idOf: (item) => item.id,
+          );
+          break;
+      }
+    }
+
+    merged.sort((left, right) {
+      final byOrder = left.sortOrder.compareTo(right.sortOrder);
+      if (byOrder != 0) {
+        return byOrder;
+      }
+
+      return left.createdAt.compareTo(right.createdAt);
+    });
+
+    return merged;
+  }
+
+  int _nextSortOrder() {
+    if (_items.isEmpty) {
+      return 0;
+    }
+
+    return _items
+            .map((item) => item.sortOrder)
+            .reduce((left, right) => left > right ? left : right) +
+        1;
+  }
+
+  String _nextTemporaryItemId() {
+    _temporaryItemCounter += 1;
+    return '__optimistic_item_$_temporaryItemCounter';
+  }
+
+  ShoppingListItem _buildOptimisticItem({
+    required String id,
+    required ItemDraft draft,
+    required int sortOrder,
+  }) {
+    final now = DateTime.now().toUtc();
+
+    return ShoppingListItem(
+      id: id,
+      listId: widget.listId,
+      name: draft.name,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      isChecked: draft.isChecked,
+      sortOrder: sortOrder,
+      createdByUserId: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    );
   }
 
   Widget _buildBody(BuildContext context) {
@@ -576,6 +781,53 @@ enum _ListAction {
   share,
 }
 
+enum _PendingItemMutationType {
+  create,
+  update,
+  delete,
+}
+
+class _PendingItemMutation {
+  const _PendingItemMutation._({
+    required this.type,
+    this.previousItem,
+    this.optimisticItem,
+  });
+
+  factory _PendingItemMutation.create({
+    required ShoppingListItem optimisticItem,
+  }) {
+    return _PendingItemMutation._(
+      type: _PendingItemMutationType.create,
+      optimisticItem: optimisticItem,
+    );
+  }
+
+  factory _PendingItemMutation.update({
+    required ShoppingListItem previousItem,
+    required ShoppingListItem optimisticItem,
+  }) {
+    return _PendingItemMutation._(
+      type: _PendingItemMutationType.update,
+      previousItem: previousItem,
+      optimisticItem: optimisticItem,
+    );
+  }
+
+  factory _PendingItemMutation.delete({
+    required ShoppingListItem previousItem,
+  }) {
+    return _PendingItemMutation._(
+      type: _PendingItemMutationType.delete,
+      previousItem: previousItem,
+    );
+  }
+
+  final _PendingItemMutationType type;
+  final ShoppingListItem? previousItem;
+  final ShoppingListItem? optimisticItem;
+}
+
 class _ItemEditorDialog extends StatefulWidget {
   const _ItemEditorDialog({this.initialItem});
 
@@ -595,10 +847,12 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.initialItem?.name ?? '');
+    _nameController =
+        TextEditingController(text: widget.initialItem?.name ?? '');
     _quantityController =
         TextEditingController(text: widget.initialItem?.quantity ?? '');
-    _unitController = TextEditingController(text: widget.initialItem?.unit ?? '');
+    _unitController =
+        TextEditingController(text: widget.initialItem?.unit ?? '');
     _isChecked = widget.initialItem?.isChecked ?? false;
   }
 
