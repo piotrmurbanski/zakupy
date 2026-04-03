@@ -8,25 +8,32 @@ void main() {
     return MaterialApp(home: ListOverviewPage(apiClient: apiClient));
   }
 
-  testWidgets('shows accessible lists and opens a list detail page',
-      (tester) async {
-    final apiClient = _FakeApiClient(lists: [
-      ShoppingListSummary(
+  testWidgets('shows accessible lists and opens a list detail page', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      lists: [
+        ShoppingListSummary(
           id: 'list_1',
           name: 'Weekly groceries',
           ownerUserId: 'user_1',
           createdAt: _createdAt,
-          updatedAt: _updatedAt)
-    ]);
+          updatedAt: _updatedAt,
+        ),
+      ],
+    );
 
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
     expect(find.text('Weekly groceries'), findsOneWidget);
     expect(
-        find.byWidgetPredicate((widget) =>
-            widget is Text && (widget.data?.startsWith('Updated ') ?? false)),
-        findsOneWidget);
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text && (widget.data?.startsWith('Updated ') ?? false),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Weekly groceries'));
     await tester.pump();
@@ -37,8 +44,9 @@ void main() {
     expect(find.text('No items yet. Add the first one.'), findsOneWidget);
   });
 
-  testWidgets('shows an empty state when the user has no visible lists',
-      (tester) async {
+  testWidgets('shows an empty state when the user has no visible lists', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildSubject(_FakeApiClient(lists: const [])));
     await tester.pumpAndSettle();
 
@@ -47,12 +55,47 @@ void main() {
 
   testWidgets('shows an error state when loading lists fails', (tester) async {
     await tester.pumpWidget(
-        buildSubject(_FakeApiClient(listsError: StateError('boom'))));
+      buildSubject(_FakeApiClient(listsError: StateError('boom'))),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Could not load your lists'), findsOneWidget);
     expect(find.text('Bad state: boom'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('keeps loaded lists visible when refresh fails', (tester) async {
+    final lists = [
+      ShoppingListSummary(
+        id: 'list_1',
+        name: 'Weekly groceries',
+        ownerUserId: 'user_1',
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+      ),
+    ];
+
+    final apiClient = _FakeApiClient(
+      lists: lists,
+      fetchListsHandler: (callCount) async {
+        if (callCount == 0) {
+          return lists;
+        }
+        throw StateError('boom');
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weekly groceries'), findsOneWidget);
+    expect(
+      find.textContaining('Could not refresh lists: Bad state: boom'),
+      findsOneWidget,
+    );
   });
 }
 
@@ -63,13 +106,25 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient({
     this.lists = const <ShoppingListSummary>[],
     this.listsError,
+    this.fetchListsHandler,
   }) : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
 
   final List<ShoppingListSummary> lists;
   final Object? listsError;
+  final Future<List<ShoppingListSummary>> Function(int callCount)?
+  fetchListsHandler;
+
+  int fetchListsCalls = 0;
 
   @override
   Future<List<ShoppingListSummary>> fetchLists() async {
+    final callCount = fetchListsCalls;
+    fetchListsCalls += 1;
+
+    if (fetchListsHandler != null) {
+      return fetchListsHandler!(callCount);
+    }
+
     if (listsError != null) {
       throw listsError!;
     }

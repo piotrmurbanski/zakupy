@@ -16,8 +16,9 @@ void main() {
     );
   }
 
-  testWidgets('adds an item optimistically and keeps it during refresh',
-      (tester) async {
+  testWidgets('adds an item optimistically and keeps it during refresh', (
+    tester,
+  ) async {
     final createCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -42,11 +43,7 @@ void main() {
     expect(find.text('Bread'), findsOneWidget);
 
     createCompleter.complete(
-      _item(
-        id: 'item_bread',
-        name: 'Bread',
-        sortOrder: 2,
-      ),
+      _item(id: 'item_bread', name: 'Bread', sortOrder: 2),
     );
     await tester.pumpAndSettle();
 
@@ -54,8 +51,47 @@ void main() {
     expect(find.byType(Checkbox), findsNWidgets(2));
   });
 
-  testWidgets('reverts an optimistic edit when the backend rejects it',
-      (tester) async {
+  testWidgets('shares a list and shows success feedback', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      shareListHandler: (_, email) async {
+        return ListMember(
+          id: 'member_1',
+          listId: 'list_1',
+          userId: 'user_2',
+          role: 'member',
+          createdAt: DateTime.utc(2026, 4, 1, 11),
+          updatedAt: DateTime.utc(2026, 4, 1, 11),
+          user: ListMemberUser(
+            id: 'user_2',
+            email: email,
+            displayName: 'Second User',
+          ),
+        );
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(PopupMenuButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share list'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'User email'),
+      'second-user@example.com',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.shareListCalls, 1);
+    expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+  });
+
+  testWidgets('reverts an optimistic edit when the backend rejects it', (
+    tester,
+  ) async {
     final updateCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -68,7 +104,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Name'), 'Oat milk');
+      find.widgetWithText(TextFormField, 'Name'),
+      'Oat milk',
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
@@ -83,8 +121,34 @@ void main() {
     expect(find.text('Could not save item: Save failed'), findsOneWidget);
   });
 
-  testWidgets('reverts an optimistic toggle when the backend rejects it',
-      (tester) async {
+  testWidgets('keeps loaded items visible when refresh fails', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      fetchItemsHandler: (callCount) async {
+        if (callCount == 0) {
+          return <ShoppingListItem>[_milkItem];
+        }
+
+        throw const ApiException('Refresh failed');
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Milk'), findsOneWidget);
+    expect(
+      find.textContaining('Could not refresh items: Refresh failed'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('reverts an optimistic toggle when the backend rejects it', (
+    tester,
+  ) async {
     final updateCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -97,23 +161,18 @@ void main() {
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
 
-    expect(
-      tester.widget<Checkbox>(find.byType(Checkbox)).value,
-      isTrue,
-    );
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
 
     updateCompleter.completeError(const ApiException('Update failed'));
     await tester.pumpAndSettle();
 
-    expect(
-      tester.widget<Checkbox>(find.byType(Checkbox)).value,
-      isFalse,
-    );
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
     expect(find.text('Could not update item: Update failed'), findsOneWidget);
   });
 
-  testWidgets('reverts an optimistic delete when the backend rejects it',
-      (tester) async {
+  testWidgets('reverts an optimistic delete when the backend rejects it', (
+    tester,
+  ) async {
     final deleteCompleter = Completer<void>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -174,22 +233,38 @@ class _FakeApiClient extends ApiClient {
     this.createItemHandler,
     this.updateItemHandler,
     this.deleteItemHandler,
+    this.fetchItemsHandler,
+    this.shareListHandler,
   }) : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
 
   final List<ShoppingListItem> items;
+  final Future<List<ShoppingListItem>> Function(int callCount)?
+  fetchItemsHandler;
   final Future<ShoppingListItem> Function(String listId, ItemDraft draft)?
-      createItemHandler;
+  createItemHandler;
   final Future<ShoppingListItem> Function(
     String listId,
     String itemId,
     ItemDraft draft,
-  )? updateItemHandler;
+  )?
+  updateItemHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
+  final Future<ListMember> Function(String listId, String email)?
+  shareListHandler;
 
   int createItemCalls = 0;
+  int fetchItemsCalls = 0;
+  int shareListCalls = 0;
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
+    final callCount = fetchItemsCalls;
+    fetchItemsCalls += 1;
+
+    if (fetchItemsHandler != null) {
+      return fetchItemsHandler!(callCount);
+    }
+
     return List<ShoppingListItem>.from(items);
   }
 
@@ -241,5 +316,31 @@ class _FakeApiClient extends ApiClient {
     }
 
     items.removeWhere((item) => item.id == itemId);
+  }
+
+  @override
+  Future<ListMember> shareList({
+    required String listId,
+    required String email,
+  }) async {
+    shareListCalls += 1;
+
+    if (shareListHandler != null) {
+      return shareListHandler!(listId, email);
+    }
+
+    return ListMember(
+      id: 'member_${shareListCalls}',
+      listId: listId,
+      userId: 'user_${shareListCalls}',
+      role: 'member',
+      createdAt: DateTime.utc(2026, 4, 1, 11),
+      updatedAt: DateTime.utc(2026, 4, 1, 11),
+      user: ListMemberUser(
+        id: 'user_${shareListCalls}',
+        email: email,
+        displayName: 'Shared User',
+      ),
+    );
   }
 }

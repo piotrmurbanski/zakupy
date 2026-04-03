@@ -58,10 +58,21 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         return;
       }
 
+      final message = error.toString();
+      final hasExistingLists = _lists.isNotEmpty;
+
       setState(() {
         _isLoading = false;
-        _errorMessage = error.toString();
+        if (!hasExistingLists) {
+          _errorMessage = message;
+        }
       });
+
+      if (hasExistingLists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh lists: $message')),
+        );
+      }
     }
   }
 
