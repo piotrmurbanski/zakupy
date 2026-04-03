@@ -50,12 +50,16 @@ The MVP is successful when:
 
 ## Status
 
-Completed in this branch:
-- backend auth, lists, sharing, and item CRUD
-- mobile auth foundation with session persistence
-- item list/detail flow on mobile with create, edit, delete, and check-off actions
+Implemented in the current codebase:
+- backend auth, list CRUD, sharing, and item CRUD
+- mobile auth foundation with session persistence and session restore on launch
+- list overview and detail flow on mobile
+- list sharing by email from the mobile UI
+- item create, edit, delete, and check-off actions on mobile
 - refresh-based sync after writes
+- periodic background refresh in the item detail view
 
-Remaining for the MVP:
-- list sharing UI on mobile
+Still worth doing before calling the MVP done:
 - end-to-end testing on real devices
+- basic smoke testing of the share flow with two real accounts
+- UX polish after hands-on use
