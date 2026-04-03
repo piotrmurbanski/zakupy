@@ -271,6 +271,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final previousItem = _items[existingIndex];
 
     setState(() {
+      _didMutateItems = true;
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -292,7 +293,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       setState(() {
-        _didMutateItems = true;
         _pendingItemIds.remove(item.id);
         _pendingItemMutations.remove(item.id);
         upsertById(

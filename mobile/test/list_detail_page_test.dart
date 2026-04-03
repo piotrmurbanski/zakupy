@@ -136,6 +136,45 @@ void main() {
     expect(find.text('Milk'), findsOneWidget);
     expect(find.text('Could not delete item: Delete failed'), findsOneWidget);
   });
+
+  testWidgets('marks the list as mutated as soon as a toggle starts',
+      (tester) async {
+    final updateCompleter = Completer<ShoppingListItem>();
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      updateItemHandler: (_, __, ___) => updateCompleter.future,
+    );
+    final resultCompleter = Completer<bool?>();
+
+    await tester.pumpWidget(
+      _OpenListHarness(
+        apiClient: apiClient,
+        onResult: resultCompleter.complete,
+      ),
+    );
+
+    await tester.tap(find.text('Open list'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    updateCompleter.complete(
+      _item(
+        id: 'item_1',
+        name: 'Milk',
+        quantity: '2',
+        unit: 'l',
+        isChecked: true,
+        sortOrder: 1,
+      ),
+    );
+
+    expect(await resultCompleter.future, true);
+  });
 }
 
 final ShoppingListItem _milkItem = _item(
@@ -241,5 +280,45 @@ class _FakeApiClient extends ApiClient {
     }
 
     items.removeWhere((item) => item.id == itemId);
+  }
+}
+
+class _OpenListHarness extends StatelessWidget {
+  const _OpenListHarness({
+    required this.apiClient,
+    required this.onResult,
+  });
+
+  final _FakeApiClient apiClient;
+  final ValueChanged<bool?> onResult;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Builder(
+        builder: (context) {
+          return Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () async {
+                  final result = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (context) => ListDetailPage(
+                        apiClient: apiClient,
+                        listId: 'list_1',
+                        listName: 'Weekly groceries',
+                      ),
+                    ),
+                  );
+
+                  onResult(result);
+                },
+                child: const Text('Open list'),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
