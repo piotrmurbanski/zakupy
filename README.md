@@ -7,6 +7,17 @@ Prywatna aplikacja zakupowa dla dwóch użytkowników. Projekt celuje w prosty, 
 - wdrożenie na domowym VM przez Docker Compose
 - dostęp prywatny przez Tailscale i reverse proxy Caddy
 
+## Aktualny stan
+
+W kodzie są już dostępne:
+- logowanie i rejestracja z sesją JWT
+- przywracanie sesji po starcie aplikacji mobilnej
+- widok list i widok szczegółów listy
+- tworzenie list
+- współdzielenie list z innym użytkownikiem
+- dodawanie, edycja, usuwanie i odhaczanie pozycji
+- odświeżanie danych po zapisie oraz okresowy refresh w widoku szczegółów listy
+
 ## Struktura repozytorium
 
 ```text
@@ -14,7 +25,7 @@ Prywatna aplikacja zakupowa dla dwóch użytkowników. Projekt celuje w prosty, 
 ├── backend/   # API Fastify, Prisma, TypeScript
 ├── docs/      # architektura, plan MVP, API, notatki operacyjne
 ├── infra/     # docker-compose, Caddyfile, deployment notes
-└── mobile/    # starter aplikacji Flutter
+└── mobile/    # aplikacja Flutter
 ```
 
 ## Szybki start
@@ -67,7 +78,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-W [infra/.env.example](/Users/piotr/sandbox/Zakupy/infra/.env.example) masz wszystkie zmienne do lokalnego uruchomienia, w tym `JWT_SECRET`. Ustaw tam własną wartość w `infra/.env`, zamiast trzymać sekret na sztywno w Compose.
+W [infra/.env.example](infra/.env.example) masz wszystkie zmienne do lokalnego uruchomienia, w tym `JWT_SECRET`. Ustaw tam własną wartość w `infra/.env`, zamiast trzymać sekret na sztywno w Compose.
 
 ### 2. Backend bez Dockera
 
@@ -83,23 +94,23 @@ API wystartuje domyślnie na `http://localhost:3000`.
 
 ### 3. Mobile
 
-`mobile/` zawiera starter struktury Flutter, ale nie jest wygenerowany przez `flutter create`, bo `flutter` nie jest dostępny w tym środowisku. Gdy będziesz mieć Flutter SDK lokalnie:
+`mobile/` zawiera obecny kod Fluttera. Jeśli potrzebujesz odtworzyć brakujące pliki platformowe lokalnie:
 
 ```bash
 cd mobile
 flutter create .
 ```
 
-Po tym zachowaj istniejący układ `lib/` i dopasuj wygenerowane pliki platformowe.
+Po wygenerowaniu zachowaj istniejący układ `lib/` i dopasuj pliki platformowe do tego kodu.
 
 ### 4. Flutter i backend razem
 
 Najprostszy lokalny flow:
 
-1. W jednym terminalu uruchom `docker compose up --build -d postgres backend` w [infra/](/Users/piotr/sandbox/Zakupy/infra).
+1. W jednym terminalu uruchom `docker compose up --build -d postgres backend` w [infra/](infra).
 2. Sprawdź `curl http://localhost:3000/health`.
 3. Wyślij `POST /auth/register`, żeby potwierdzić zapis do Postgresa.
-4. W [mobile/](/Users/piotr/sandbox/Zakupy/mobile) wykonaj `flutter create .`, potem `flutter pub get`.
+4. W [mobile/](mobile) wykonaj `flutter create .`, potem `flutter pub get`.
 5. Uruchom `flutter run --dart-define=API_BASE_URL=https://twoj-host.tailnet.ts.net` na simulatorze iOS albo emulatorze Android.
 
 Na prawdziwych urządzeniach nie używaj `localhost` jako API URL. Telefon powinien łączyć się z backendem przez adres Tailscale/Caddy dostępny w sieci urządzenia, najlepiej po HTTPS.
@@ -113,10 +124,10 @@ Zakres pierwszej wersji:
 - dodawanie, edycja, usuwanie i odhaczanie pozycji
 - prosty sync oparty o odświeżanie danych po zapisie
 
+To już pokrywa obecna implementacja backendu i mobile. Następne rozsądne kroki to dopięcie pełnego testowania end-to-end oraz dalsze uspójnianie UX pod użycie na dwóch realnych telefonach.
+
 ## Najbliższe kroki
 
-1. Zainstalować zależności backendu i wykonać pierwszą migrację Prisma.
-2. Dokończyć moduł auth z Argon2 i JWT.
-3. Dodać CRUD list, członkostwa i pozycji.
-4. Wygenerować pełny projekt Flutter przez `flutter create .` w `mobile/`.
-5. Spiąć mobile z backendem przez REST.
+1. Dopięcie pełnego testowania end-to-end na dwóch realnych urządzeniach.
+2. Wyczyszczenie UX po wspólnym użyciu z drugą osobą.
+3. Rozszerzenie mobile o zarządzanie listami poza tworzeniem i współdzieleniem, jeśli okaże się to potrzebne w codziennym użyciu.
