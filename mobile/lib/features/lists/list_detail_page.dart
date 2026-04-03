@@ -86,10 +86,21 @@ class _ListDetailPageState extends State<ListDetailPage> {
         return;
       }
 
+      final hasExistingItems = _items.isNotEmpty;
+      final message = error.message;
+
       setState(() {
         _isLoading = false;
-        _errorMessage = error.message;
+        if (!hasExistingItems) {
+          _errorMessage = message;
+        }
       });
+
+      if (hasExistingItems) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh items: $message')),
+        );
+      }
     }
   }
 
@@ -123,8 +134,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
     });
 
     try {
-      final createdItem =
-          await widget.apiClient.createItem(widget.listId, draft);
+      final createdItem = await widget.apiClient.createItem(
+        widget.listId,
+        draft,
+      );
 
       if (!mounted) {
         return;
@@ -133,16 +146,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       setState(() {
         _pendingItemIds.remove(temporaryId);
         _pendingItemMutations.remove(temporaryId);
-        removeById(
-          target: _items,
-          id: temporaryId,
-          idOf: (item) => item.id,
-        );
-        upsertById(
-          target: _items,
-          value: createdItem,
-          idOf: (item) => item.id,
-        );
+        removeById(target: _items, id: temporaryId, idOf: (item) => item.id);
+        upsertById(target: _items, value: createdItem, idOf: (item) => item.id);
         _sortItems();
       });
     } on ApiException catch (error) {
@@ -158,11 +163,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       setState(() {
         _pendingItemIds.remove(temporaryId);
         _pendingItemMutations.remove(temporaryId);
-        removeById(
-          target: _items,
-          id: temporaryId,
-          idOf: (item) => item.id,
-        );
+        removeById(target: _items, id: temporaryId, idOf: (item) => item.id);
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -266,8 +267,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     final optimisticItem = _items[existingIndex].toDraft().copyWith(
-          isChecked: checked,
-        );
+      isChecked: checked,
+    );
     final previousItem = _items[existingIndex];
 
     setState(() {
@@ -380,11 +381,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       setState(() {
         _pendingItemIds.remove(item.id);
         _pendingItemMutations.remove(item.id);
-        removeById(
-          target: _items,
-          id: item.id,
-          idOf: (entry) => entry.id,
-        );
+        removeById(target: _items, id: item.id, idOf: (entry) => entry.id);
       });
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
@@ -452,9 +449,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -563,8 +560,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
       child: ListTile(
         leading: Checkbox(
           value: item.isChecked,
-          onChanged:
-              isPending ? null : (checked) => _onToggleRequested(item, checked),
+          onChanged: isPending
+              ? null
+              : (checked) => _onToggleRequested(item, checked),
         ),
         title: Text(
           item.name,
@@ -604,7 +602,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   List<ShoppingListItem> _mergeFetchedItems(
-      List<ShoppingListItem> fetchedItems) {
+    List<ShoppingListItem> fetchedItems,
+  ) {
     final merged = List<ShoppingListItem>.from(fetchedItems);
 
     for (final entry in _pendingItemMutations.entries) {
@@ -630,11 +629,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
           );
           break;
         case _PendingItemMutationType.delete:
-          removeById(
-            target: merged,
-            id: itemId,
-            idOf: (item) => item.id,
-          );
+          removeById(target: merged, id: itemId, idOf: (item) => item.id);
           break;
       }
     }
@@ -694,9 +689,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
           SizedBox(height: 240),
-          Center(
-            child: CircularProgressIndicator(),
-          ),
+          Center(child: CircularProgressIndicator()),
         ],
       );
     }
@@ -738,9 +731,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
           SizedBox(height: 160),
-          Center(
-            child: Text('No items yet. Add the first one.'),
-          ),
+          Center(child: Text('No items yet. Add the first one.')),
         ],
       );
     }
@@ -777,15 +768,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 }
 
-enum _ListAction {
-  share,
-}
+enum _ListAction { share }
 
-enum _PendingItemMutationType {
-  create,
-  update,
-  delete,
-}
+enum _PendingItemMutationType { create, update, delete }
 
 class _PendingItemMutation {
   const _PendingItemMutation._({
@@ -847,12 +832,15 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController =
-        TextEditingController(text: widget.initialItem?.name ?? '');
-    _quantityController =
-        TextEditingController(text: widget.initialItem?.quantity ?? '');
-    _unitController =
-        TextEditingController(text: widget.initialItem?.unit ?? '');
+    _nameController = TextEditingController(
+      text: widget.initialItem?.name ?? '',
+    );
+    _quantityController = TextEditingController(
+      text: widget.initialItem?.quantity ?? '',
+    );
+    _unitController = TextEditingController(
+      text: widget.initialItem?.unit ?? '',
+    );
     _isChecked = widget.initialItem?.isChecked ?? false;
   }
 
@@ -945,10 +933,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Save'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
       ],
     );
   }
@@ -1023,10 +1008,7 @@ class _ShareListDialogState extends State<_ShareListDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Share'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Share')),
       ],
     );
   }
