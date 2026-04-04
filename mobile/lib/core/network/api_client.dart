@@ -96,6 +96,20 @@ class ApiClient {
     });
   }
 
+  Future<ShoppingListSummary> updateList(String listId, String name) {
+    return _guard(() async {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/lists/$listId',
+        data: {
+          'name': name.trim(),
+        },
+        options: _authOptions(),
+      );
+
+      return ShoppingListSummary.fromJson(_readObject(response.data, 'list'));
+    });
+  }
+
   Future<ShoppingListSummary> createList(String name) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(

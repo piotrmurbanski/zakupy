@@ -6,12 +6,16 @@ import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_detail_page.dart';
 
 void main() {
-  Widget buildSubject(_FakeApiClient apiClient) {
+  Widget buildSubject(
+    _FakeApiClient apiClient, {
+    bool canManageList = false,
+  }) {
     return MaterialApp(
       home: ListDetailPage(
         apiClient: apiClient,
         listId: 'list_1',
         listName: 'Weekly groceries',
+        canManageList: canManageList,
       ),
     );
   }
@@ -74,7 +78,7 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(PopupMenuButton));
+    await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Share list'));
     await tester.pumpAndSettle();
@@ -87,6 +91,61 @@ void main() {
 
     expect(apiClient.shareListCalls, 1);
     expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+  });
+
+  testWidgets('renames a list and refreshes the title', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      updateListHandler: (_, name) async {
+        return ShoppingListSummary(
+          id: 'list_1',
+          name: name,
+          ownerUserId: 'user_1',
+          createdAt: DateTime.utc(2026, 3, 31, 8),
+          updatedAt: DateTime.utc(2026, 4, 1, 12),
+        );
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename list'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'List name'),
+      'Weekend groceries',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.updateListCalls, 1);
+    expect(find.text('Weekend groceries'), findsWidgets);
+    expect(find.text('Renamed to Weekend groceries.'), findsOneWidget);
+  });
+
+  testWidgets('rejects an empty rename before calling the backend', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename list'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'List name'), '');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pump();
+
+    expect(find.text('List name is required'), findsOneWidget);
+    expect(apiClient.updateListCalls, 0);
   });
 
   testWidgets('reverts an optimistic edit when the backend rejects it', (
@@ -235,8 +294,7 @@ void main() {
     expect(await resultCompleter.future, true);
   });
 
-  testWidgets('moves checked items below unchecked items',
-      (tester) async {
+  testWidgets('moves checked items below unchecked items', (tester) async {
     final updateCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[
@@ -317,6 +375,7 @@ class _FakeApiClient extends ApiClient {
     required this.items,
     this.createItemHandler,
     this.updateItemHandler,
+    this.updateListHandler,
     this.deleteItemHandler,
     this.fetchItemsHandler,
     this.shareListHandler,
@@ -324,22 +383,24 @@ class _FakeApiClient extends ApiClient {
 
   final List<ShoppingListItem> items;
   final Future<List<ShoppingListItem>> Function(int callCount)?
-  fetchItemsHandler;
+      fetchItemsHandler;
   final Future<ShoppingListItem> Function(String listId, ItemDraft draft)?
-  createItemHandler;
+      createItemHandler;
   final Future<ShoppingListItem> Function(
     String listId,
     String itemId,
     ItemDraft draft,
-  )?
-  updateItemHandler;
+  )? updateItemHandler;
+  final Future<ShoppingListSummary> Function(String listId, String name)?
+      updateListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
   final Future<ListMember> Function(String listId, String email)?
-  shareListHandler;
+      shareListHandler;
 
   int createItemCalls = 0;
   int fetchItemsCalls = 0;
   int shareListCalls = 0;
+  int updateListCalls = 0;
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
@@ -392,6 +453,23 @@ class _FakeApiClient extends ApiClient {
     );
     items[index] = updatedItem;
     return updatedItem;
+  }
+
+  @override
+  Future<ShoppingListSummary> updateList(String listId, String name) async {
+    updateListCalls += 1;
+
+    if (updateListHandler != null) {
+      return updateListHandler!(listId, name);
+    }
+
+    return ShoppingListSummary(
+      id: listId,
+      name: name,
+      ownerUserId: 'user_1',
+      createdAt: DateTime.utc(2026, 3, 31, 8),
+      updatedAt: DateTime.utc(2026, 4, 1, 12),
+    );
   }
 
   @override

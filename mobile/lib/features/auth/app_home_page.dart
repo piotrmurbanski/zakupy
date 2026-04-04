@@ -167,6 +167,7 @@ class _AppHomePageState extends State<AppHomePage> {
           apiClient: _apiClient,
           listId: list.id,
           listName: list.name,
+          canManageList: list.ownerUserId == widget.session.session.user.id,
           onUnauthorized: widget.onLogout,
         ),
       ),
@@ -286,7 +287,8 @@ class _AppHomePageState extends State<AppHomePage> {
                     const SizedBox(height: 4),
                     Text(widget.session.session.user.email),
                     const SizedBox(height: 12),
-                    Text(widget.session.baseUrl, style: theme.textTheme.bodySmall),
+                    Text(widget.session.baseUrl,
+                        style: theme.textTheme.bodySmall),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -331,7 +333,8 @@ class _AppHomePageState extends State<AppHomePage> {
               const Padding(
                 padding: EdgeInsets.only(top: 32),
                 child: Center(
-                  child: Text('No lists yet. Create the first one to get started.'),
+                  child: Text(
+                      'No lists yet. Create the first one to get started.'),
                 ),
               )
             else
