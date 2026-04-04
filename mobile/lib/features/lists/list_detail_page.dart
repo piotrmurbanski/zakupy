@@ -591,14 +591,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   void _sortItems() {
-    _items.sort((left, right) {
-      final byOrder = left.sortOrder.compareTo(right.sortOrder);
-      if (byOrder != 0) {
-        return byOrder;
-      }
-
-      return left.createdAt.compareTo(right.createdAt);
-    });
+    _items.sort(_compareItems);
   }
 
   List<ShoppingListItem> _mergeFetchedItems(
@@ -634,16 +627,27 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
     }
 
-    merged.sort((left, right) {
-      final byOrder = left.sortOrder.compareTo(right.sortOrder);
-      if (byOrder != 0) {
-        return byOrder;
-      }
-
-      return left.createdAt.compareTo(right.createdAt);
-    });
+    merged.sort(_compareItems);
 
     return merged;
+  }
+
+  int _compareItems(ShoppingListItem left, ShoppingListItem right) {
+    final byChecked = left.isChecked == right.isChecked
+        ? 0
+        : left.isChecked
+            ? 1
+            : -1;
+    if (byChecked != 0) {
+      return byChecked;
+    }
+
+    final byOrder = left.sortOrder.compareTo(right.sortOrder);
+    if (byOrder != 0) {
+      return byOrder;
+    }
+
+    return left.createdAt.compareTo(right.createdAt);
   }
 
   int _nextSortOrder() {

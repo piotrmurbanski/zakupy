@@ -234,6 +234,52 @@ void main() {
 
     expect(await resultCompleter.future, true);
   });
+
+  testWidgets('moves checked items below unchecked items',
+      (tester) async {
+    final updateCompleter = Completer<ShoppingListItem>();
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[
+        _item(
+          id: 'item_1',
+          name: 'Milk',
+          sortOrder: 0,
+        ),
+        _item(
+          id: 'item_2',
+          name: 'Bread',
+          sortOrder: 1,
+        ),
+      ],
+      updateItemHandler: (_, __, ___) => updateCompleter.future,
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Milk')).dy,
+      lessThan(tester.getTopLeft(find.text('Bread')).dy),
+    );
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pump();
+
+    expect(
+      tester.getTopLeft(find.text('Bread')).dy,
+      lessThan(tester.getTopLeft(find.text('Milk')).dy),
+    );
+
+    updateCompleter.complete(
+      _item(
+        id: 'item_1',
+        name: 'Milk',
+        sortOrder: 0,
+        isChecked: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+  });
 }
 
 final ShoppingListItem _milkItem = _item(
