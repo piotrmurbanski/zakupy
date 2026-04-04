@@ -55,6 +55,7 @@ Implemented in the current codebase:
 - mobile auth foundation with session persistence and session restore on launch
 - list overview and detail flow on mobile
 - list sharing by email from the mobile UI
+- list renaming from the detail screen for owners
 - item create, edit, delete, and check-off actions on mobile
 - refresh-based sync after writes
 - periodic background refresh in the item detail view

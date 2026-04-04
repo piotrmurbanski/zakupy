@@ -10,6 +10,7 @@ class ListDetailPage extends StatefulWidget {
     required this.apiClient,
     required this.listId,
     this.listName,
+    this.canManageList = false,
     this.onUnauthorized,
     super.key,
   });
@@ -17,6 +18,7 @@ class ListDetailPage extends StatefulWidget {
   final ApiClient apiClient;
   final String listId;
   final String? listName;
+  final bool canManageList;
   final Future<void> Function()? onUnauthorized;
 
   @override
@@ -29,9 +31,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
   final Map<String, _PendingItemMutation> _pendingItemMutations =
       <String, _PendingItemMutation>{};
 
+  late String _listName;
   bool _isLoading = true;
   bool _isSharing = false;
-  bool _didMutateItems = false;
+  bool _didMutateList = false;
   String? _errorMessage;
   int _temporaryItemCounter = 0;
   Timer? _refreshTimer;
@@ -39,6 +42,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   @override
   void initState() {
     super.initState();
+    _listName = widget.listName ?? 'List ${widget.listId}';
     _reloadItems();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
@@ -124,7 +128,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
 
     setState(() {
-      _didMutateItems = true;
+      _didMutateList = true;
       _pendingItemIds.add(temporaryId);
       _pendingItemMutations[temporaryId] = _PendingItemMutation.create(
         optimisticItem: optimisticItem,
@@ -198,7 +202,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
 
     setState(() {
-      _didMutateItems = true;
+      _didMutateList = true;
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -267,12 +271,12 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     final optimisticItem = _items[existingIndex].toDraft().copyWith(
-      isChecked: checked,
-    );
+          isChecked: checked,
+        );
     final previousItem = _items[existingIndex];
 
     setState(() {
-      _didMutateItems = true;
+      _didMutateList = true;
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -363,7 +367,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final previousItem = _items[existingIndex];
 
     setState(() {
-      _didMutateItems = true;
+      _didMutateList = true;
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.delete(
         previousItem: previousItem,
@@ -461,9 +465,63 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
+  Future<void> _renameList() async {
+    if (!widget.canManageList) {
+      return;
+    }
+
+    final nextName = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return _ListNameDialog(
+          title: 'Rename list',
+          initialValue: _listName,
+          actionLabel: 'Save',
+        );
+      },
+    );
+
+    if (nextName == null || nextName == _listName) {
+      return;
+    }
+
+    try {
+      final updatedList = await widget.apiClient.updateList(
+        widget.listId,
+        nextName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateList = true;
+        _listName = updatedList.name;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Renamed to ${updatedList.name}.')),
+      );
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not rename list: ${error.message}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = widget.listName ?? 'List ${widget.listId}';
+    final title = _listName;
 
     return PopScope<bool>(
       canPop: false,
@@ -472,12 +530,12 @@ class _ListDetailPageState extends State<ListDetailPage> {
           return;
         }
 
-        Navigator.of(context).pop(_didMutateItems);
+        Navigator.of(context).pop(_didMutateList);
       },
       child: Scaffold(
         appBar: AppBar(
           leading: BackButton(
-            onPressed: () => Navigator.of(context).pop(_didMutateItems),
+            onPressed: () => Navigator.of(context).pop(_didMutateList),
           ),
           title: Text(title),
           bottom: widget.listName == null
@@ -501,6 +559,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
               onSelected: (action) {
                 if (action == _ListAction.share) {
                   _shareList();
+                } else if (action == _ListAction.rename) {
+                  _renameList();
                 }
               },
               itemBuilder: (context) => [
@@ -509,6 +569,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   enabled: !_isSharing,
                   child: const Text('Share list'),
                 ),
+                if (widget.canManageList)
+                  const PopupMenuItem<_ListAction>(
+                    value: _ListAction.rename,
+                    child: Text('Rename list'),
+                  ),
               ],
             ),
           ],
@@ -560,9 +625,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       child: ListTile(
         leading: Checkbox(
           value: item.isChecked,
-          onChanged: isPending
-              ? null
-              : (checked) => _onToggleRequested(item, checked),
+          onChanged:
+              isPending ? null : (checked) => _onToggleRequested(item, checked),
         ),
         title: Text(
           item.name,
@@ -772,7 +836,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 }
 
-enum _ListAction { share }
+enum _ListAction { share, rename }
 
 enum _PendingItemMutationType { create, update, delete }
 
@@ -1013,6 +1077,87 @@ class _ShareListDialogState extends State<_ShareListDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(onPressed: _submit, child: const Text('Share')),
+      ],
+    );
+  }
+}
+
+class _ListNameDialog extends StatefulWidget {
+  const _ListNameDialog({
+    required this.title,
+    required this.initialValue,
+    required this.actionLabel,
+  });
+
+  final String title;
+  final String initialValue;
+  final String actionLabel;
+
+  @override
+  State<_ListNameDialog> createState() => _ListNameDialogState();
+}
+
+class _ListNameDialogState extends State<_ListNameDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'List name'),
+          maxLength: 100,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _submit(),
+          validator: (value) {
+            final trimmed = value?.trim() ?? '';
+
+            if (trimmed.isEmpty) {
+              return 'List name is required';
+            }
+
+            if (trimmed.length > 100) {
+              return 'List name must be at most 100 characters';
+            }
+
+            return null;
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.actionLabel),
+        ),
       ],
     );
   }

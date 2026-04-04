@@ -90,7 +90,8 @@ void main() {
     expect(item.createdByUserId, 'user_1');
   });
 
-  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields', () {
+  test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields',
+      () {
     final item = ShoppingListItem(
       id: 'item_1',
       listId: 'list_1',
@@ -166,7 +167,8 @@ void main() {
     expect(memberException.statusCode, 409);
   });
 
-  test('ApiClient login sends credentials and parses the auth session', () async {
+  test('ApiClient login sends credentials and parses the auth session',
+      () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(
         jsonEncode({
@@ -206,6 +208,43 @@ void main() {
     expect(adapter.lastRequest?.headers['Authorization'], isNull);
     expect(session.accessToken, 'jwt-token');
     expect(session.user.email, 'test@example.com');
+  });
+
+  test('ApiClient updateList sends the new list name and parses the response',
+      () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'list': {
+            'id': 'list_1',
+            'name': 'Weekend groceries',
+            'ownerUserId': 'user_1',
+            'createdAt': '2026-03-30T10:00:00.000Z',
+            'updatedAt': '2026-03-31T10:00:00.000Z',
+          },
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'token',
+      dio: dio,
+    );
+    final list = await client.updateList('list_1', 'Weekend groceries');
+
+    expect(adapter.lastRequest?.path, '/lists/list_1');
+    expect(adapter.lastRequest?.method, 'PATCH');
+    expect(adapter.lastRequest?.data, {'name': 'Weekend groceries'});
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer token');
+    expect(list.name, 'Weekend groceries');
+    expect(list.ownerUserId, 'user_1');
   });
 
   test('AuthSession and AuthUser parse API payloads', () {

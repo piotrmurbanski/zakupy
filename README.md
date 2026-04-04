@@ -15,6 +15,7 @@ W kodzie są już dostępne:
 - widok list i widok szczegółów listy
 - tworzenie list
 - współdzielenie list z innym użytkownikiem
+- zmiana nazwy listy z widoku szczegółów przez właściciela
 - dodawanie, edycja, usuwanie i odhaczanie pozycji
 - odświeżanie danych po zapisie oraz okresowy refresh w widoku szczegółów listy
 
