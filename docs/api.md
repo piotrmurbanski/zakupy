@@ -2,18 +2,26 @@
 
 ## Auth
 
-- `POST /auth/register`
-- `POST /auth/login`
+- `POST /auth/request-code`
+- `POST /auth/verify-code`
+- `POST /auth/logout`
 - `GET /auth/me`
 
-### `POST /auth/register`
+### Auth contract summary
+
+- MVP auth uses `email + one-time code`
+- authenticated requests use `Authorization: Bearer <sessionToken>`
+- `sessionToken` is an opaque trusted-session token, not a password
+- `POST /auth/request-code` should return a generic success payload even for unknown emails
+- only the newest active code for an email is valid
+
+### `POST /auth/request-code`
 
 Request body:
 
 ```json
 {
   "email": "test@example.com",
-  "password": "supersecret123",
   "displayName": "Piotr"
 }
 ```
@@ -22,25 +30,24 @@ Response:
 
 ```json
 {
-  "accessToken": "jwt-token",
-  "user": {
-    "id": "user_id",
-    "email": "test@example.com",
-    "displayName": "Piotr",
-    "createdAt": "2026-03-29T10:00:00.000Z",
-    "updatedAt": "2026-03-29T10:00:00.000Z"
-  }
+  "status": "code_sent"
 }
 ```
 
-### `POST /auth/login`
+Notes:
+- `displayName` is optional and is used only when the email becomes a new user on first verification
+- response should stay generic to avoid account enumeration
+- dev delivery may log the code or send it to a local mailbox sink; deployed VM should use SMTP or another simple private email path
+
+### `POST /auth/verify-code`
 
 Request body:
 
 ```json
 {
   "email": "test@example.com",
-  "password": "supersecret123"
+  "code": "123456",
+  "displayName": "Piotr"
 }
 ```
 
@@ -48,7 +55,7 @@ Response:
 
 ```json
 {
-  "accessToken": "jwt-token",
+  "sessionToken": "trusted-session-token",
   "user": {
     "id": "user_id",
     "email": "test@example.com",
@@ -59,12 +66,37 @@ Response:
 }
 ```
 
+Notes:
+- if the email does not exist yet, successful verification creates the user
+- if pending invitations exist for the verified email, they should be claimed before the response is returned
+- code verification should fail for expired, consumed, throttled, or over-attempted codes
+
+### `POST /auth/logout`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Response:
+
+```json
+{
+  "status": "logged_out"
+}
+```
+
+Notes:
+- logout revokes only the current trusted session
+- after logout, `GET /auth/me` with the same token should return `401`
+
 ### `GET /auth/me`
 
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 Response:
@@ -88,7 +120,7 @@ Response:
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 Response:
@@ -136,7 +168,7 @@ Response:
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 Response:
@@ -182,7 +214,7 @@ Response:
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 ## Members
@@ -225,15 +257,32 @@ Response:
 
 Notes:
 - only the list owner can add members
-- the invited user must already exist
-- duplicate membership returns `409 Conflict`
+- if the invited email already belongs to an active user, the backend should create a real membership immediately
+- if the invited email is not active yet, the backend should create a pending invitation instead
+- duplicate active memberships or duplicate pending invitations should return `409 Conflict`
+
+Alternative response for a pending invitation:
+
+```json
+{
+  "invitation": {
+    "id": "invite_id",
+    "listId": "list_id",
+    "email": "second-user@example.com",
+    "role": "editor",
+    "status": "pending",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
 
 ### `DELETE /lists/:listId/members/:userId`
 
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 Notes:
@@ -247,7 +296,7 @@ Notes:
 Headers:
 
 ```http
-Authorization: Bearer jwt-token
+Authorization: Bearer trusted-session-token
 ```
 
 Response:

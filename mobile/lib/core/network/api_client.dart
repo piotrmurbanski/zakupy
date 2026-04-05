@@ -35,35 +35,41 @@ class ApiClient {
     );
   }
 
-  Future<AuthSession> register({
+  Future<void> requestCode({
     required String email,
-    required String password,
-    required String displayName,
+    String? displayName,
   }) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/register',
+        '/auth/request-code',
         data: {
           'email': email.trim(),
-          'password': password,
-          'displayName': displayName.trim(),
+          if ((displayName ?? '').trim().isNotEmpty)
+            'displayName': displayName!.trim(),
         },
       );
 
-      return _authSessionFromResponse(response.data);
+      final status = _readString(response.data, 'status');
+
+      if (status != 'code_sent') {
+        throw const ApiException('Unexpected response from /auth/request-code');
+      }
     });
   }
 
-  Future<AuthSession> login({
+  Future<AuthSession> verifyCode({
     required String email,
-    required String password,
+    required String code,
+    String? displayName,
   }) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/auth/login',
+        '/auth/verify-code',
         data: {
           'email': email.trim(),
-          'password': password,
+          'code': code.trim(),
+          if ((displayName ?? '').trim().isNotEmpty)
+            'displayName': displayName!.trim(),
         },
       );
 
@@ -79,6 +85,21 @@ class ApiClient {
       );
 
       return AuthUser.fromJson(_readObject(response.data, 'user'));
+    });
+  }
+
+  Future<void> logout() {
+    return _guard(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/logout',
+        options: _authOptions(),
+      );
+
+      final status = _readString(response.data, 'status');
+
+      if (status != 'logged_out') {
+        throw const ApiException('Unexpected response from /auth/logout');
+      }
     });
   }
 
@@ -217,16 +238,29 @@ class ApiClient {
   }
 
   static AuthSession _authSessionFromResponse(Map<String, dynamic>? payload) {
-    final accessToken = payload?['accessToken'];
+    final sessionToken = payload?['sessionToken'] ?? payload?['accessToken'];
 
-    if (accessToken is! String || accessToken.trim().isEmpty) {
-      throw const ApiException('Missing accessToken in API response');
+    if (sessionToken is! String || sessionToken.trim().isEmpty) {
+      throw const ApiException('Missing sessionToken in API response');
     }
 
     return AuthSession(
-      accessToken: accessToken,
+      sessionToken: sessionToken,
       user: AuthUser.fromJson(_readObject(payload, 'user')),
     );
+  }
+
+  static String _readString(
+    Map<String, dynamic>? payload,
+    String key,
+  ) {
+    final value = payload?[key];
+
+    if (value is String) {
+      return value;
+    }
+
+    throw ApiException('Missing $key in API response');
   }
 
   static Map<String, dynamic> _readObject(

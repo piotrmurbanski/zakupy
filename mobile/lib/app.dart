@@ -131,27 +131,27 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
           errorMessage: state.errorMessage,
           themeMode: widget.themeMode,
           onThemeModeChanged: widget.onThemeModeChanged,
-          onLogin: ({
+          onRequestCode: ({
             required String baseUrl,
             required String email,
-            required String password,
+            String? displayName,
           }) {
-            return _sessionController.login(
+            return _sessionController.requestCode(
               baseUrl: baseUrl,
               email: email,
-              password: password,
+              displayName: displayName,
             );
           },
-          onRegister: ({
+          onVerifyCode: ({
             required String baseUrl,
             required String email,
-            required String password,
-            required String displayName,
+            required String code,
+            String? displayName,
           }) {
-            return _sessionController.register(
+            return _sessionController.verifyCode(
               baseUrl: baseUrl,
               email: email,
-              password: password,
+              code: code,
               displayName: displayName,
             );
           },

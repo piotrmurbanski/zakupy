@@ -22,7 +22,7 @@ void main() {
     final staleUser = _buildUser(displayName: 'Old Name');
     await sessionStore.write(StoredAuthSession(
         baseUrl: 'http://localhost:3000',
-        session: AuthSession(accessToken: 'saved-token', user: staleUser)));
+        session: AuthSession(sessionToken: 'saved-token', user: staleUser)));
     authRepository.currentUser = _buildUser(displayName: 'Fresh Name');
 
     await controller.bootstrap();
@@ -36,7 +36,7 @@ void main() {
     await sessionStore.write(StoredAuthSession(
         baseUrl: 'http://localhost:3000',
         session:
-            AuthSession(accessToken: 'expired-token', user: _buildUser())));
+            AuthSession(sessionToken: 'expired-token', user: _buildUser())));
     authRepository.currentUserError =
         const ApiException('User not found', statusCode: 401);
 
@@ -47,37 +47,69 @@ void main() {
     expect(sessionStore.savedSession, isNull);
   });
 
-  test('login persists the authenticated session', () async {
-    authRepository.loginResponse = AuthSession(
-        accessToken: 'new-token', user: _buildUser(displayName: 'Tester'));
+  test('requestCode leaves the controller unauthenticated on success',
+      () async {
+    await controller.requestCode(
+      baseUrl: 'http://localhost:3000/',
+      email: 'test@example.com',
+      displayName: 'Tester',
+    );
 
-    await controller.login(
-        baseUrl: 'http://localhost:3000/',
-        email: 'test@example.com',
-        password: 'supersecret123');
+    expect(controller.value.status, SessionStatus.unauthenticated);
+    expect(sessionStore.savedSession, isNull);
+    expect(authRepository.requestCodeCalls, 1);
+  });
+
+  test('verifyCode persists the authenticated session', () async {
+    authRepository.verifyCodeResponse = AuthSession(
+        sessionToken: 'new-token', user: _buildUser(displayName: 'Tester'));
+
+    await controller.verifyCode(
+      baseUrl: 'http://localhost:3000/',
+      email: 'test@example.com',
+      code: '123456',
+      displayName: 'Tester',
+    );
 
     expect(controller.value.status, SessionStatus.authenticated);
     expect(controller.value.session?.baseUrl, 'http://localhost:3000');
-    expect(controller.value.session?.session.accessToken, 'new-token');
+    expect(controller.value.session?.session.sessionToken, 'new-token');
     expect(sessionStore.savedSession?.session.user.displayName, 'Tester');
   });
 
-  test('register surfaces backend errors without persisting a session',
+  test('verifyCode surfaces backend errors without persisting a session',
       () async {
-    authRepository.registerError = const ApiException(
-        'User with this email already exists',
-        statusCode: 409);
+    authRepository.verifyCodeError =
+        const ApiException('Invalid code', statusCode: 401);
 
-    await controller.register(
-        baseUrl: 'http://localhost:3000',
-        email: 'taken@example.com',
-        password: 'supersecret123',
-        displayName: 'Taken User');
+    await controller.verifyCode(
+      baseUrl: 'http://localhost:3000',
+      email: 'taken@example.com',
+      code: '000000',
+      displayName: 'Taken User',
+    );
 
     expect(controller.value.status, SessionStatus.unauthenticated);
-    expect(
-        controller.value.errorMessage, 'User with this email already exists');
+    expect(controller.value.errorMessage, 'Invalid code');
     expect(sessionStore.savedSession, isNull);
+  });
+
+  test('logout clears the local session and revokes remotely', () async {
+    final session = StoredAuthSession(
+      baseUrl: 'http://localhost:3000',
+      session: AuthSession(
+        sessionToken: 'session-token',
+        user: _buildUser(),
+      ),
+    );
+    await sessionStore.write(session);
+    controller.value = SessionState.authenticated(session);
+
+    await controller.logout();
+
+    expect(controller.value.status, SessionStatus.unauthenticated);
+    expect(sessionStore.savedSession, isNull);
+    expect(authRepository.logoutCalls, 1);
   });
 }
 
@@ -101,49 +133,61 @@ class _InMemorySessionStore extends InMemoryAuthSessionStore {
 }
 
 class _FakeAuthRepository extends AuthRepository {
-  AuthSession? loginResponse;
-  AuthSession? registerResponse;
+  AuthSession? verifyCodeResponse;
   AuthUser? currentUser;
-  ApiException? loginError;
-  ApiException? registerError;
+  ApiException? requestCodeError;
+  ApiException? verifyCodeError;
   ApiException? currentUserError;
+  int requestCodeCalls = 0;
+  int verifyCodeCalls = 0;
+  int logoutCalls = 0;
 
   @override
-  Future<AuthSession> login(
-      {required String baseUrl,
-      required String email,
-      required String password}) async {
-    if (loginError != null) {
-      throw loginError!;
-    }
+  Future<void> requestCode({
+    required String baseUrl,
+    required String email,
+    String? displayName,
+  }) async {
+    requestCodeCalls += 1;
 
-    return loginResponse ??
-        AuthSession(accessToken: 'token', user: _buildUser());
+    if (requestCodeError != null) {
+      throw requestCodeError!;
+    }
   }
 
   @override
-  Future<AuthSession> register(
-      {required String baseUrl,
-      required String email,
-      required String password,
-      required String displayName}) async {
-    if (registerError != null) {
-      throw registerError!;
+  Future<AuthSession> verifyCode({
+    required String baseUrl,
+    required String email,
+    required String code,
+    String? displayName,
+  }) async {
+    verifyCodeCalls += 1;
+
+    if (verifyCodeError != null) {
+      throw verifyCodeError!;
     }
 
-    return registerResponse ??
-        AuthSession(
-            accessToken: 'token', user: _buildUser(displayName: displayName));
+    return verifyCodeResponse ??
+        AuthSession(sessionToken: 'token', user: _buildUser());
   }
 
   @override
   Future<AuthUser> fetchCurrentUser(
-      {required String baseUrl, required String accessToken}) async {
+      {required String baseUrl, required String sessionToken}) async {
     if (currentUserError != null) {
       throw currentUserError!;
     }
 
     return currentUser ?? _buildUser();
+  }
+
+  @override
+  Future<void> logout({
+    required String baseUrl,
+    required String sessionToken,
+  }) async {
+    logoutCalls += 1;
   }
 }
 

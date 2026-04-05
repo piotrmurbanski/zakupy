@@ -6,7 +6,7 @@ import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 void main() {
   AuthSession buildSession() {
     return AuthSession(
-      accessToken: 'token_123',
+      sessionToken: 'token_123',
       user: AuthUser(
         id: 'user_1',
         email: 'test@example.com',
@@ -27,7 +27,7 @@ void main() {
         StoredAuthSession.fromStorageValue(session.toStorageValue());
 
     expect(restored.baseUrl, 'http://localhost:3000');
-    expect(restored.session.accessToken, 'token_123');
+    expect(restored.session.sessionToken, 'token_123');
     expect(restored.session.user.email, 'test@example.com');
     expect(restored.session.user.displayName, 'Test User');
   });
