@@ -145,7 +145,7 @@ class ApiClient {
     });
   }
 
-  Future<ListMember> shareList({
+  Future<ShareListResult> shareList({
     required String listId,
     required String email,
   }) {
@@ -158,11 +158,27 @@ class ApiClient {
         options: _authOptions(),
       );
 
-      return ListMember.fromJson(_readObject(response.data, 'member'));
+      if (response.data?['member'] != null) {
+        return ShareListResult.member(
+          ListMember.fromJson(_readObject(response.data, 'member')),
+        );
+      }
+
+      if (response.data?['invitation'] != null) {
+        return ShareListResult.invitation(
+          PendingListInvitation.fromJson(
+            _readObject(response.data, 'invitation'),
+          ),
+        );
+      }
+
+      throw const ApiException(
+        'Unexpected response from list sharing endpoint',
+      );
     });
   }
 
-  Future<ListMember> addListMember(String listId, String email) {
+  Future<ShareListResult> addListMember(String listId, String email) {
     return shareList(listId: listId, email: email);
   }
 
@@ -541,4 +557,54 @@ class ListMember {
 
     throw ApiException('Missing $key in API response');
   }
+}
+
+class PendingListInvitation {
+  const PendingListInvitation({
+    required this.id,
+    required this.listId,
+    required this.email,
+    required this.role,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String listId;
+  final String email;
+  final String role;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory PendingListInvitation.fromJson(Map<String, dynamic> json) {
+    return PendingListInvitation(
+      id: json['id'] as String,
+      listId: json['listId'] as String,
+      email: json['email'] as String,
+      role: json['role'] as String,
+      status: json['status'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+}
+
+class ShareListResult {
+  const ShareListResult._({
+    this.member,
+    this.invitation,
+  });
+
+  const ShareListResult.member(ListMember member)
+      : this._(member: member);
+
+  const ShareListResult.invitation(PendingListInvitation invitation)
+      : this._(invitation: invitation);
+
+  final ListMember? member;
+  final PendingListInvitation? invitation;
+
+  bool get isInvitationPending => invitation != null;
 }
