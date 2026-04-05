@@ -431,7 +431,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     });
 
     try {
-      final member = await widget.apiClient.shareList(
+      final result = await widget.apiClient.shareList(
         listId: widget.listId,
         email: email,
       );
@@ -440,9 +440,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Shared with ${member.user.email}.')),
-      );
+      final message = result.member != null
+          ? 'Shared with ${result.member!.user.email}.'
+          : 'Invitation sent to ${result.invitation!.email}.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();

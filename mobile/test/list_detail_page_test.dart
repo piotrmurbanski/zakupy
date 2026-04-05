@@ -59,17 +59,19 @@ void main() {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
       shareListHandler: (_, email) async {
-        return ListMember(
-          id: 'member_1',
-          listId: 'list_1',
-          userId: 'user_2',
-          role: 'member',
-          createdAt: DateTime.utc(2026, 4, 1, 11),
-          updatedAt: DateTime.utc(2026, 4, 1, 11),
-          user: ListMemberUser(
-            id: 'user_2',
-            email: email,
-            displayName: 'Second User',
+        return ShareListResult.member(
+          ListMember(
+            id: 'member_1',
+            listId: 'list_1',
+            userId: 'user_2',
+            role: 'member',
+            createdAt: DateTime.utc(2026, 4, 1, 11),
+            updatedAt: DateTime.utc(2026, 4, 1, 11),
+            user: ListMemberUser(
+              id: 'user_2',
+              email: email,
+              displayName: 'Second User',
+            ),
           ),
         );
       },
@@ -91,6 +93,46 @@ void main() {
 
     expect(apiClient.shareListCalls, 1);
     expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+  });
+
+  testWidgets('shows pending invitation feedback for inactive email', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      shareListHandler: (_, email) async {
+        return ShareListResult.invitation(
+          PendingListInvitation(
+            id: 'invite_1',
+            listId: 'list_1',
+            email: email,
+            role: 'editor',
+            status: 'pending',
+            createdAt: DateTime.utc(2026, 4, 1, 11),
+            updatedAt: DateTime.utc(2026, 4, 1, 11),
+          ),
+        );
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share list'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'User email'),
+      'pending-user@example.com',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Invitation sent to pending-user@example.com.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('renames a list and refreshes the title', (tester) async {
@@ -394,7 +436,7 @@ class _FakeApiClient extends ApiClient {
   final Future<ShoppingListSummary> Function(String listId, String name)?
       updateListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
-  final Future<ListMember> Function(String listId, String email)?
+  final Future<ShareListResult> Function(String listId, String email)?
       shareListHandler;
 
   int createItemCalls = 0;
@@ -482,7 +524,7 @@ class _FakeApiClient extends ApiClient {
   }
 
   @override
-  Future<ListMember> shareList({
+  Future<ShareListResult> shareList({
     required String listId,
     required String email,
   }) async {
@@ -492,17 +534,19 @@ class _FakeApiClient extends ApiClient {
       return shareListHandler!(listId, email);
     }
 
-    return ListMember(
-      id: 'member_${shareListCalls}',
-      listId: listId,
-      userId: 'user_${shareListCalls}',
-      role: 'member',
-      createdAt: DateTime.utc(2026, 4, 1, 11),
-      updatedAt: DateTime.utc(2026, 4, 1, 11),
-      user: ListMemberUser(
-        id: 'user_${shareListCalls}',
-        email: email,
-        displayName: 'Shared User',
+    return ShareListResult.member(
+      ListMember(
+        id: 'member_${shareListCalls}',
+        listId: listId,
+        userId: 'user_${shareListCalls}',
+        role: 'member',
+        createdAt: DateTime.utc(2026, 4, 1, 11),
+        updatedAt: DateTime.utc(2026, 4, 1, 11),
+        user: ListMemberUser(
+          id: 'user_${shareListCalls}',
+          email: email,
+          displayName: 'Shared User',
+        ),
       ),
     );
   }

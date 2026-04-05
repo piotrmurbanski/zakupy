@@ -271,6 +271,45 @@ void main() {
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
+  test('ApiClient shareList parses a pending invitation response', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'invitation': {
+            'id': 'invite_1',
+            'listId': 'list_1',
+            'email': 'pending@example.com',
+            'role': 'editor',
+            'status': 'pending',
+            'createdAt': '2026-04-05T20:00:00.000Z',
+            'updatedAt': '2026-04-05T20:00:00.000Z',
+          },
+        }),
+        202,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+    final result = await client.shareList(
+      listId: 'list_1',
+      email: 'pending@example.com',
+    );
+
+    expect(adapter.lastRequest?.path, '/lists/list_1/members');
+    expect(result.isInvitationPending, true);
+    expect(result.invitation?.email, 'pending@example.com');
+    expect(result.member, isNull);
+  });
+
   test('AuthSession and AuthUser parse API payloads', () {
     final session = AuthSession.fromJson({
       'sessionToken': 'session-token',
