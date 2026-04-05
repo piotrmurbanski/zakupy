@@ -28,7 +28,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(jwt, {
     secret: env.JWT_SECRET
   });
-  app.decorate('prisma', options.prisma ?? prisma);
+  app.decorate('prisma', (options.prisma ?? prisma) as AuthPrisma);
 
   await app.register(healthRoutes);
   await app.register(authRoutes);

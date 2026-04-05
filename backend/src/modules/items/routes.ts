@@ -1,13 +1,9 @@
-import type { ListItem, PrismaClient, ShoppingList, User } from '@prisma/client';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import { prisma } from '../../lib/prisma.js';
-
-type JwtUserPayload = {
-  sub: string;
-  email: string;
-};
+import type { UserRecord } from '../../lib/types.js';
+import { authenticateRequest } from '../auth/session.js';
 
 type ItemResponse = {
   id: string;
@@ -22,15 +18,109 @@ type ItemResponse = {
   updatedAt: Date;
 };
 
-type ItemRepository = Pick<PrismaClient['listItem'], 'findMany' | 'findFirst' | 'create' | 'update' | 'delete'>;
-type ListRepository = Pick<PrismaClient['shoppingList'], 'findFirst'>;
-type UserRepository = Pick<PrismaClient['user'], 'findUnique'>;
+type ItemRecord = {
+  id: string;
+  listId: string;
+  name: string;
+  quantity: string | null;
+  unit: string | null;
+  isChecked: boolean;
+  sortOrder: number;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ListRecord = {
+  id: string;
+  ownerUserId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ItemRepository = {
+  findMany(args: {
+    where?: { listId?: string };
+    orderBy?: { sortOrder?: 'asc' | 'desc' };
+    take?: number;
+  }): Promise<ItemRecord[]>;
+  findFirst(args: {
+    where: { id?: string; listId?: string };
+  }): Promise<ItemRecord | null>;
+  create(args: {
+    data: {
+      listId: string;
+      name: string;
+      quantity?: string | null;
+      unit?: string | null;
+      isChecked: boolean;
+      sortOrder: number;
+      createdByUserId: string;
+    };
+  }): Promise<ItemRecord>;
+  update(args: {
+    where: { id: string };
+    data: {
+      name?: string;
+      quantity?: string | null;
+      unit?: string | null;
+      isChecked?: boolean;
+    };
+  }): Promise<ItemRecord>;
+  delete(args: {
+    where: { id: string };
+  }): Promise<ItemRecord>;
+};
+
+type ListRepository = {
+  findFirst(args: {
+    where: {
+      id?: string;
+      members?: {
+        some?: {
+          userId?: string;
+        };
+      };
+    };
+  }): Promise<ListRecord | null>;
+};
+
+type UserRepository = {
+  findUnique(args: {
+    where: {
+      id?: string;
+      email?: string;
+    };
+  }): Promise<UserRecord | null>;
+};
+
+type AuthSessionRepository = {
+  findFirst(args: {
+    where: {
+      tokenHash?: string;
+      revokedAt?: null;
+    };
+    include?: {
+      user?: boolean;
+    };
+  }): Promise<({ id: string; expiresAt: Date; user?: UserRecord } & Record<string, unknown>) | null>;
+  update(args: {
+    where: {
+      id: string;
+    };
+    data: {
+      lastUsedAt?: Date;
+    };
+  }): Promise<unknown>;
+};
 
 type ItemRoutesDeps = {
   prisma: {
     listItem: ItemRepository;
     shoppingList: ListRepository;
     user: UserRepository;
+    authSession: AuthSessionRepository;
   };
 };
 
@@ -48,12 +138,12 @@ const updateItemBodySchema = z.object({
 });
 
 const defaultDeps = {
-  prisma
-} satisfies ItemRoutesDeps;
+  prisma: prisma as unknown as ItemRoutesDeps['prisma']
+};
 
 function toItemResponse(
   item: Pick<
-    ListItem,
+    ItemRecord,
     | 'id'
     | 'listId'
     | 'name'
@@ -88,26 +178,6 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   }
 
   return result.data;
-}
-
-async function authenticateRequest(
-  deps: ItemRoutesDeps,
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<Pick<User, 'id' | 'email' | 'displayName' | 'createdAt' | 'updatedAt'> | null> {
-  const payload = await request.jwtVerify<JwtUserPayload>();
-  const user = await deps.prisma.user.findUnique({
-    where: {
-      id: payload.sub
-    }
-  });
-
-  if (!user) {
-    reply.unauthorized('User not found');
-    return null;
-  }
-
-  return user;
 }
 
 async function findVisibleList(deps: ItemRoutesDeps, userId: string, listId: string) {
@@ -165,7 +235,7 @@ async function getNextSortOrder(deps: ItemRoutesDeps, listId: string) {
 export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
     app.get('/lists/:listId/items', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -193,7 +263,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.post('/lists/:listId/items', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -231,7 +301,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.patch('/lists/:listId/items/:itemId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -278,7 +348,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.delete('/lists/:listId/items/:itemId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
