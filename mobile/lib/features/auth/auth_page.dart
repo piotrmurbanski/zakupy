@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/theme_mode_menu.dart';
+
 typedef LoginSubmit = Future<void> Function(
     {required String baseUrl, required String email, required String password});
 
@@ -13,6 +15,8 @@ class AuthPage extends StatefulWidget {
   const AuthPage(
       {required this.onLogin,
       required this.onRegister,
+      required this.themeMode,
+      required this.onThemeModeChanged,
       this.initialBaseUrl = '',
       this.isSubmitting = false,
       this.errorMessage,
@@ -20,6 +24,8 @@ class AuthPage extends StatefulWidget {
 
   final LoginSubmit onLogin;
   final RegisterSubmit onRegister;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
   final String initialBaseUrl;
   final bool isSubmitting;
   final String? errorMessage;
@@ -81,6 +87,15 @@ class _AuthPageState extends State<AuthPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+        appBar: AppBar(
+          title: const Text('Zakupy'),
+          actions: [
+            ThemeModeMenuButton(
+              currentThemeMode: widget.themeMode,
+              onSelected: widget.onThemeModeChanged,
+            ),
+          ],
+        ),
         body: Container(
             decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -91,6 +106,7 @@ class _AuthPageState extends State<AuthPage> {
                   theme.colorScheme.surface
                 ])),
             child: SafeArea(
+                top: false,
                 child: Center(
                     child: SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
