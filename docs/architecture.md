@@ -66,11 +66,12 @@ It is also a good stepping stone:
 - Flutter
 - Dart
 - `dio` or `http` for API requests
-- `flutter_secure_storage` for tokens
+- `flutter_secure_storage` for trusted session tokens
 - local storage later with SQLite or Drift if offline becomes important
 
 ### Responsibilities
-- authenticate the user
+- request sign-in codes and verify them
+- store and restore the trusted device session
 - show lists and list items
 - submit create/update/delete actions
 - refresh state after writes
@@ -111,6 +112,14 @@ This is not the most efficient approach, but it is reliable and easy to debug.
 - data validation
 - audit-friendly timestamps
 
+### Passwordless delivery
+
+For the MVP, sign-in codes should be delivered through the simplest reliable path available in each environment:
+
+- local development can use application logs or a disposable SMTP sink such as Mailpit
+- the home VM should expose SMTP-related environment variables so the backend can send codes through a private mail provider later
+- the backend should not depend on public email infrastructure for the MVP
+
 ### Suggested module layout
 
 ```text
@@ -139,6 +148,9 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 
 ### Core tables
 - `users`
+- `auth_codes`
+- `auth_sessions`
+- `list_invitations`
 - `shopping_lists`
 - `list_members`
 - `list_items`
@@ -148,8 +160,39 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 #### users
 - `id`
 - `email`
-- `password_hash`
 - `display_name`
+- `created_at`
+- `updated_at`
+
+#### auth_codes
+- `id`
+- `email`
+- `code_hash`
+- `expires_at`
+- `consumed_at`
+- `attempt_count`
+- `created_at`
+- `updated_at`
+
+#### auth_sessions
+- `id`
+- `user_id`
+- `token_hash`
+- `device_label`
+- `last_used_at`
+- `expires_at`
+- `revoked_at`
+- `created_at`
+- `updated_at`
+
+#### list_invitations
+- `id`
+- `list_id`
+- `email`
+- `role`
+- `invited_by_user_id`
+- `claimed_by_user_id`
+- `claimed_at`
 - `created_at`
 - `updated_at`
 
@@ -181,22 +224,84 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 
 ### Notes
 - `list_members` allows sharing lists with another user cleanly.
+- `list_invitations` keeps email-based sharing working before the invited person has signed in for the first time.
+- `auth_codes` should store only hashed one-time codes and should invalidate older active codes for the same email when a new code is requested.
+- `auth_sessions` should back the trusted-device flow with opaque bearer tokens stored only as hashes in PostgreSQL.
 - `role` can start with `owner` and `editor`.
 - `sort_order` makes manual ordering possible later.
 - `updated_at` is enough for the first synchronization approach.
+
+## Authentication model
+
+### MVP auth choice
+
+The MVP should switch from passwords to `email + one-time code`.
+
+Reasons:
+- the app is private and used by two known people
+- email remains the stable identity for sharing and sync
+- removing passwords reduces UX and support overhead
+- opaque trusted sessions are easier to revoke and reason about than long-lived password credentials
+
+Magic links can be added later, but the initial contract should assume numeric or short alphanumeric one-time codes.
+
+### Canonical sign-in flow
+
+1. the app asks for an email address
+2. the client calls `POST /auth/request-code`
+3. the backend generates a short-lived one-time code, stores only its hash, and delivers it by email
+4. the app collects the code and calls `POST /auth/verify-code`
+5. after successful verification, the backend creates or reuses the `users` record, claims matching pending invitations, creates a trusted session, and returns an opaque bearer token
+6. the app stores that trusted session token securely and restores it on future launches with `GET /auth/me`
+
+### Trusted-device semantics
+
+- a trusted session belongs to one app install on one device
+- the mobile app stores the opaque session token in secure storage
+- the same token is sent as `Authorization: Bearer <sessionToken>` on authenticated requests
+- sessions should survive normal app restarts
+- logout revokes only the current trusted session
+- deleting app storage or reinstalling the app should require a new code verification
+- sessions should have a long but finite lifetime, for example 90 days with rolling `last_used_at` updates
+
+### Security constraints
+
+- `POST /auth/request-code` should always return a generic success response to avoid revealing whether an email is already active
+- one-time codes should expire quickly, recommended at 10 minutes
+- only the newest unconsumed code for an email should remain valid
+- verification attempts should be capped per code, recommended at 5 attempts
+- resend should be throttled per email, recommended at 60 seconds minimum between sends
+- request volume should be rate-limited per email and per IP
+- code values and session tokens must be stored only as hashes in PostgreSQL
+
+### User identity creation
+
+- `email` remains the canonical identity key
+- if the verified email does not exist yet, the backend creates the user during `POST /auth/verify-code`
+- the first successful verification may include an optional `displayName`; if absent, the backend may derive a temporary fallback from the email local-part
+- subsequent sign-ins ignore user creation fields and simply create a new trusted session
+
+### Invitation and sharing model
+
+- list owners can share a list with any email address, even if that email has not signed in yet
+- if the email already belongs to an active user, the backend should create a `list_members` row immediately
+- otherwise, the backend should create a `list_invitations` row keyed by normalized email
+- after a successful verification, the backend should atomically claim all pending invitations for the same normalized email and convert them into `list_members`
+- API responses should be able to distinguish active members from pending invitations so mobile can explain share state clearly
 
 ## API design
 
 ### Style
 - REST over HTTPS
 - JSON request and response bodies
-- JWT access tokens for authenticated requests
+- opaque bearer session tokens for authenticated requests
 
 ### Initial endpoints
 
 #### auth
-- `POST /auth/register`
-- `POST /auth/login`
+- `POST /auth/request-code`
+- `POST /auth/verify-code`
+- `POST /auth/logout`
 - `GET /auth/me`
 
 #### lists
@@ -254,8 +359,9 @@ Use Caddy to:
 
 ### MVP security baseline
 - HTTPS only
-- password hashing with Argon2
-- JWT authentication
+- passwordless email verification
+- trusted bearer sessions
+- code hashing with a slow hash such as Argon2
 - authorization checks on every protected route
 - environment variables for secrets
 - regular database backups

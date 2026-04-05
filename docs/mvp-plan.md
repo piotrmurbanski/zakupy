@@ -7,8 +7,7 @@ Build a first usable version for two people sharing shopping lists across Androi
 ## Scope
 
 ### Included
-- account registration
-- login
+- passwordless sign-in by email code
 - create list
 - share list with second user
 - add item
@@ -41,7 +40,7 @@ Build a first usable version for two people sharing shopping lists across Androi
 ## Acceptance criteria
 
 The MVP is successful when:
-- both users can log in
+- both users can sign in with a verified email and trusted session
 - one user can create a list
 - the second user can see the shared list
 - both users can add and check items
@@ -63,4 +62,5 @@ Implemented in the current codebase:
 Still worth doing before calling the MVP done:
 - end-to-end testing on real devices
 - basic smoke testing of the share flow with two real accounts
+- confirm passwordless code delivery on local dev and the home VM
 - UX polish after hands-on use
