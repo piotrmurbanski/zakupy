@@ -48,11 +48,11 @@ class SessionController extends ValueNotifier<SessionState> {
     try {
       final user = await _authRepository.fetchCurrentUser(
           baseUrl: storedSession.baseUrl,
-          accessToken: storedSession.session.accessToken);
+          sessionToken: storedSession.session.sessionToken);
       final session = StoredAuthSession(
           baseUrl: storedSession.baseUrl,
           session: AuthSession(
-            accessToken: storedSession.session.accessToken,
+            sessionToken: storedSession.session.sessionToken,
             user: user,
           ));
 
@@ -68,41 +68,43 @@ class SessionController extends ValueNotifier<SessionState> {
     }
   }
 
-  Future<void> login(
-      {required String baseUrl,
-      required String email,
-      required String password}) async {
+  Future<void> requestCode({
+    required String baseUrl,
+    required String email,
+    String? displayName,
+  }) async {
     value = const SessionState.loading();
 
     try {
-      final response = await _authRepository.login(
-          baseUrl: baseUrl, email: email, password: password);
-      final session = StoredAuthSession(
-          baseUrl: normalizeBaseUrl(baseUrl), session: response);
-
-      await _sessionStore.write(session);
-      value = SessionState.authenticated(session);
+      await _authRepository.requestCode(
+        baseUrl: baseUrl,
+        email: email,
+        displayName: displayName,
+      );
+      value = const SessionState.unauthenticated();
     } on ApiException catch (error) {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Could not sign in right now.');
+          errorMessage: 'Could not send a sign-in code right now.');
     }
   }
 
-  Future<void> register(
-      {required String baseUrl,
-      required String email,
-      required String password,
-      required String displayName}) async {
+  Future<void> verifyCode({
+    required String baseUrl,
+    required String email,
+    required String code,
+    String? displayName,
+  }) async {
     value = const SessionState.loading();
 
     try {
-      final response = await _authRepository.register(
-          baseUrl: baseUrl,
-          email: email,
-          password: password,
-          displayName: displayName);
+      final response = await _authRepository.verifyCode(
+        baseUrl: baseUrl,
+        email: email,
+        code: code,
+        displayName: displayName,
+      );
       final session = StoredAuthSession(
           baseUrl: normalizeBaseUrl(baseUrl), session: response);
 
@@ -112,11 +114,24 @@ class SessionController extends ValueNotifier<SessionState> {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Could not create the account right now.');
+          errorMessage: 'Could not verify the code right now.');
     }
   }
 
   Future<void> logout() async {
+    final currentSession = value.session;
+
+    if (currentSession != null) {
+      try {
+        await _authRepository.logout(
+          baseUrl: currentSession.baseUrl,
+          sessionToken: currentSession.session.sessionToken,
+        );
+      } catch (_) {
+        // Always clear local auth state, even if the remote session is already gone.
+      }
+    }
+
     await _sessionStore.clear();
     value = const SessionState.unauthenticated();
   }

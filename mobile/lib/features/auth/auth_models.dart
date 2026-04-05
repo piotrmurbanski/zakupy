@@ -34,21 +34,29 @@ class AuthUser {
 
 class AuthSession {
   const AuthSession({
-    required this.accessToken,
+    required this.sessionToken,
     required this.user,
   });
 
-  final String accessToken;
+  final String sessionToken;
   final AuthUser user;
 
+  String get accessToken => sessionToken;
+
   Map<String, dynamic> toJson() {
-    return {'accessToken': accessToken, 'user': user.toJson()};
+    return {'sessionToken': sessionToken, 'user': user.toJson()};
   }
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
+    final token = json['sessionToken'] ?? json['accessToken'];
+
+    if (token is! String || token.trim().isEmpty) {
+      throw FormatException('Missing session token');
+    }
+
     return AuthSession(
-        accessToken: json['accessToken'] as String,
-        user:
-            AuthUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)));
+      sessionToken: token,
+      user: AuthUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
+    );
   }
 }

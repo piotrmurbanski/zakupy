@@ -5,44 +5,54 @@ import 'auth_session_store.dart';
 class AuthRepository {
   const AuthRepository();
 
-  Future<AuthSession> register({
+  Future<void> requestCode({
     required String baseUrl,
     required String email,
-    required String password,
-    required String displayName,
+    String? displayName,
   }) {
-    return ApiClient(baseUrl: baseUrl).register(
+    return ApiClient(baseUrl: baseUrl).requestCode(
       email: email.trim(),
-      password: password,
-      displayName: displayName.trim(),
+      displayName: displayName?.trim(),
     );
   }
 
-  Future<AuthSession> login({
+  Future<AuthSession> verifyCode({
     required String baseUrl,
     required String email,
-    required String password,
+    required String code,
+    String? displayName,
   }) {
-    return ApiClient(baseUrl: baseUrl).login(
+    return ApiClient(baseUrl: baseUrl).verifyCode(
       email: email.trim(),
-      password: password,
+      code: code.trim(),
+      displayName: displayName?.trim(),
     );
   }
 
   Future<AuthUser> fetchCurrentUser({
     required String baseUrl,
-    required String accessToken,
+    required String sessionToken,
   }) {
     return ApiClient(
       baseUrl: baseUrl,
-      accessToken: accessToken,
+      accessToken: sessionToken,
     ).fetchCurrentUser();
+  }
+
+  Future<void> logout({
+    required String baseUrl,
+    required String sessionToken,
+  }) {
+    return ApiClient(
+      baseUrl: baseUrl,
+      accessToken: sessionToken,
+    ).logout();
   }
 
   ApiClient buildAuthenticatedClient(StoredAuthSession session) {
     return ApiClient(
       baseUrl: session.baseUrl,
-      accessToken: session.session.accessToken,
+      accessToken: session.session.sessionToken,
     );
   }
 }

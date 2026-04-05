@@ -167,12 +167,45 @@ void main() {
     expect(memberException.statusCode, 409);
   });
 
-  test('ApiClient login sends credentials and parses the auth session',
+  test('ApiClient requestCode sends email and optional display name', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'status': 'code_sent',
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      dio: dio,
+    );
+    await client.requestCode(
+      email: 'test@example.com',
+      displayName: 'Tester',
+    );
+
+    expect(adapter.lastRequest?.path, '/auth/request-code');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data, {
+      'email': 'test@example.com',
+      'displayName': 'Tester',
+    });
+    expect(adapter.lastRequest?.headers['Authorization'], isNull);
+  });
+
+  test('ApiClient verifyCode sends the code and parses the session payload',
       () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(
         jsonEncode({
-          'accessToken': 'jwt-token',
+          'sessionToken': 'session-token',
           'user': {
             'id': 'user_1',
             'email': 'test@example.com',
@@ -194,34 +227,28 @@ void main() {
       baseUrl: 'http://localhost:3000/',
       dio: dio,
     );
-    final session = await client.login(
+    final session = await client.verifyCode(
       email: 'test@example.com',
-      password: 'supersecret123',
+      code: '123456',
+      displayName: 'Tester',
     );
 
-    expect(adapter.lastRequest?.path, '/auth/login');
+    expect(adapter.lastRequest?.path, '/auth/verify-code');
     expect(adapter.lastRequest?.method, 'POST');
     expect(adapter.lastRequest?.data, {
       'email': 'test@example.com',
-      'password': 'supersecret123',
+      'code': '123456',
+      'displayName': 'Tester',
     });
-    expect(adapter.lastRequest?.headers['Authorization'], isNull);
-    expect(session.accessToken, 'jwt-token');
+    expect(session.sessionToken, 'session-token');
     expect(session.user.email, 'test@example.com');
   });
 
-  test('ApiClient updateList sends the new list name and parses the response',
-      () async {
+  test('ApiClient logout posts the active session token', () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(
         jsonEncode({
-          'list': {
-            'id': 'list_1',
-            'name': 'Weekend groceries',
-            'ownerUserId': 'user_1',
-            'createdAt': '2026-03-30T10:00:00.000Z',
-            'updatedAt': '2026-03-31T10:00:00.000Z',
-          },
+          'status': 'logged_out',
         }),
         200,
         headers: {
@@ -234,22 +261,19 @@ void main() {
 
     final client = ApiClient(
       baseUrl: 'http://localhost:3000/',
-      accessToken: 'token',
+      accessToken: 'session-token',
       dio: dio,
     );
-    final list = await client.updateList('list_1', 'Weekend groceries');
+    await client.logout();
 
-    expect(adapter.lastRequest?.path, '/lists/list_1');
-    expect(adapter.lastRequest?.method, 'PATCH');
-    expect(adapter.lastRequest?.data, {'name': 'Weekend groceries'});
-    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer token');
-    expect(list.name, 'Weekend groceries');
-    expect(list.ownerUserId, 'user_1');
+    expect(adapter.lastRequest?.path, '/auth/logout');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
   test('AuthSession and AuthUser parse API payloads', () {
     final session = AuthSession.fromJson({
-      'accessToken': 'jwt-token',
+      'sessionToken': 'session-token',
       'user': {
         'id': 'user_1',
         'email': 'test@example.com',
@@ -259,7 +283,7 @@ void main() {
       },
     });
 
-    expect(session.accessToken, 'jwt-token');
+    expect(session.sessionToken, 'session-token');
     expect(session.user.id, 'user_1');
     expect(session.user.displayName, 'Test User');
   });
