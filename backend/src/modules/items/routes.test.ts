@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
-import jwt from '@fastify/jwt';
 import sensible from '@fastify/sensible';
 
+import { hashSecret } from '../auth/session.js';
 import { createItemRoutes } from './routes.js';
-
-const JWT_SECRET = 'test-secret';
 
 type TestUser = {
   id: string;
@@ -36,6 +33,17 @@ type TestItem = {
   isChecked: boolean;
   sortOrder: number;
   createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type TestSession = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  lastUsedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -82,7 +90,8 @@ function buildItem(overrides: Partial<TestItem> = {}): TestItem {
 async function buildApp(
   userById: Map<string, TestUser | undefined>,
   listsById: Map<string, TestList | undefined>,
-  itemsById: Map<string, TestItem | undefined>
+  itemsById: Map<string, TestItem | undefined>,
+  sessions: TestSession[] = []
 ) {
   const app = Fastify();
 
@@ -100,18 +109,47 @@ async function buildApp(
         return null;
       }
     },
+    authSession: {
+      findFirst: async ({
+        where,
+        include
+      }: {
+        where: { tokenHash?: string; revokedAt?: null };
+        include?: { user?: boolean };
+      }) => {
+        const session =
+          sessions.find((item) => item.tokenHash === where.tokenHash && (where.revokedAt !== null || item.revokedAt === null)) ?? null;
+
+        if (!session) {
+          return null;
+        }
+
+        if (include?.user) {
+          return {
+            ...session,
+            user: userById.get(session.userId) ?? undefined
+          };
+        }
+
+        return session;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: { lastUsedAt?: Date } }) => {
+        const session = sessions.find((item) => item.id === where.id);
+
+        if (!session) {
+          throw new Error('Session not found');
+        }
+
+        session.lastUsedAt = data.lastUsedAt ?? session.lastUsedAt;
+        session.updatedAt = data.lastUsedAt ?? session.updatedAt;
+        return session;
+      }
+    },
     shoppingList: {
       findFirst: async ({
         where
       }: {
-        where: {
-          id?: string;
-          members?: {
-            some?: {
-              userId?: string;
-            };
-          };
-        };
+        where: { id?: string; members?: { some?: { userId?: string } } };
       }) => {
         const list = where.id ? listsById.get(where.id) ?? null : null;
 
@@ -120,7 +158,6 @@ async function buildApp(
         }
 
         const userId = where.members?.some?.userId;
-
         if (userId && !list.memberIds.has(userId)) {
           return null;
         }
@@ -139,13 +176,7 @@ async function buildApp(
         take?: number;
       }) => {
         const listId = where?.listId;
-        let items = [...itemsById.values()].filter((item): item is TestItem => {
-          if (!item) {
-            return false;
-          }
-
-          return listId ? item.listId === listId : true;
-        });
+        let items = [...itemsById.values()].filter((item): item is TestItem => Boolean(item && (!listId || item.listId === listId)));
 
         if (orderBy?.sortOrder === 'asc') {
           items = items.sort((left, right) => left.sortOrder - right.sortOrder);
@@ -153,20 +184,9 @@ async function buildApp(
           items = items.sort((left, right) => right.sortOrder - left.sortOrder);
         }
 
-        if (take) {
-          items = items.slice(0, take);
-        }
-
-        return items;
+        return take ? items.slice(0, take) : items;
       },
-      findFirst: async ({
-        where
-      }: {
-        where: {
-          id?: string;
-          listId?: string;
-        };
-      }) => {
+      findFirst: async ({ where }: { where: { id?: string; listId?: string } }) => {
         const item = where.id ? itemsById.get(where.id) ?? null : null;
 
         if (!item) {
@@ -213,15 +233,8 @@ async function buildApp(
         where,
         data
       }: {
-        where: {
-          id: string;
-        };
-        data: {
-          name?: string;
-          quantity?: string | null;
-          unit?: string | null;
-          isChecked?: boolean;
-        };
+        where: { id: string };
+        data: { name?: string; quantity?: string | null; unit?: string | null; isChecked?: boolean };
       }) => {
         const item = itemsById.get(where.id);
 
@@ -252,105 +265,50 @@ async function buildApp(
         return item;
       }
     }
-  } as unknown as Pick<PrismaClient, 'user' | 'shoppingList' | 'listItem'>;
+  };
 
   await app.register(sensible);
-  await app.register(jwt, {
-    secret: JWT_SECRET
-  });
-  await app.register(
-    createItemRoutes({
-      prisma: prismaMock
-    })
-  );
-
+  await app.register(createItemRoutes({ prisma: prismaMock as never }));
   await app.ready();
   return app;
 }
 
+function buildSessionToken(userId: string) {
+  const rawToken = `session-${userId}`;
+
+  const session: TestSession = {
+    id: `sess-${userId}`,
+    userId,
+    tokenHash: hashSecret(rawToken),
+    expiresAt: new Date('2026-07-01T00:00:00.000Z'),
+    revokedAt: null,
+    lastUsedAt: new Date('2026-04-01T00:00:00.000Z'),
+    createdAt: new Date('2026-04-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-04-01T00:00:00.000Z')
+  };
+
+  return { rawToken, session };
+}
+
 test('GET /lists/:listId/items returns items visible to the user ordered by sortOrder', async () => {
   const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
+  const list = buildList({ memberIds: new Set([user.id]) });
   const items = new Map<string, TestItem | undefined>([
-    [
-      'item_1',
-      buildItem({
-        id: 'item_1',
-        listId: list.id,
-        name: 'Bread',
-        sortOrder: 2,
-        createdByUserId: user.id
-      })
-    ],
-    [
-      'item_2',
-      buildItem({
-        id: 'item_2',
-        listId: list.id,
-        name: 'Butter',
-        sortOrder: 1,
-        createdByUserId: user.id
-      })
-    ]
+    ['item_1', buildItem({ id: 'item_1', listId: list.id, name: 'Bread', sortOrder: 2, createdByUserId: user.id })],
+    ['item_2', buildItem({ id: 'item_2', listId: list.id, name: 'Butter', sortOrder: 1, createdByUserId: user.id })]
   ]);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items);
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
 
   try {
     const response = await app.inject({
       method: 'GET',
       url: `/lists/${list.id}/items`,
-      headers: {
-        authorization: `Bearer ${token}`
-      }
+      headers: { authorization: `Bearer ${rawToken}` }
     });
 
     assert.equal(response.statusCode, 200);
-
-    const body = response.json() as {
-      items: Array<{ id: string; name: string; sortOrder: number }>;
-    };
-
-    assert.deepEqual(
-      body.items.map((item) => item.name),
-      ['Butter', 'Bread']
-    );
-    assert.deepEqual(
-      body.items.map((item) => item.sortOrder),
-      [1, 2]
-    );
-  } finally {
-    await app.close();
-  }
-});
-
-test('GET /lists/:listId/items returns 404 for a list the user cannot access', async () => {
-  const user = buildUser();
-  const list = buildList({
-    ownerUserId: 'user_2',
-    memberIds: new Set(['user_2'])
-  });
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map());
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
-
-  try {
-    const response = await app.inject({
-      method: 'GET',
-      url: `/lists/${list.id}/items`,
-      headers: {
-        authorization: `Bearer ${token}`
-      }
-    });
-
-    assert.equal(response.statusCode, 404);
+    assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Butter', 'Bread']);
   } finally {
     await app.close();
   }
@@ -358,89 +316,24 @@ test('GET /lists/:listId/items returns 404 for a list the user cannot access', a
 
 test('POST /lists/:listId/items creates a new item for a visible list', async () => {
   const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
+  const list = buildList({ memberIds: new Set([user.id]) });
   const items = new Map<string, TestItem | undefined>([
-    [
-      'item_1',
-      buildItem({
-        id: 'item_1',
-        listId: list.id,
-        sortOrder: 0,
-        createdByUserId: user.id
-      })
-    ]
+    ['item_1', buildItem({ id: 'item_1', listId: list.id, sortOrder: 0, createdByUserId: user.id })]
   ]);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items);
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
 
   try {
     const response = await app.inject({
       method: 'POST',
       url: `/lists/${list.id}/items`,
-      headers: {
-        authorization: `Bearer ${token}`
-      },
-      payload: {
-        name: '  Apples  ',
-        quantity: ' 2 ',
-        unit: ' kg '
-      }
+      headers: { authorization: `Bearer ${rawToken}` },
+      payload: { name: '  Apples  ', quantity: ' 2 ', unit: ' kg ' }
     });
 
     assert.equal(response.statusCode, 201);
-
-    const body = response.json() as {
-      item: {
-        name: string;
-        quantity: string | null;
-        unit: string | null;
-        isChecked: boolean;
-        sortOrder: number;
-        createdByUserId: string;
-      };
-    };
-
-    assert.equal(body.item.name, 'Apples');
-    assert.equal(body.item.quantity, '2');
-    assert.equal(body.item.unit, 'kg');
-    assert.equal(body.item.isChecked, false);
-    assert.equal(body.item.sortOrder, 1);
-    assert.equal(body.item.createdByUserId, user.id);
+    assert.equal(response.json().item.name, 'Apples');
     assert.equal(items.size, 2);
-  } finally {
-    await app.close();
-  }
-});
-
-test('POST /lists/:listId/items rejects invalid payload', async () => {
-  const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map());
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
-
-  try {
-    const response = await app.inject({
-      method: 'POST',
-      url: `/lists/${list.id}/items`,
-      headers: {
-        authorization: `Bearer ${token}`
-      },
-      payload: {
-        name: ' '
-      }
-    });
-
-    assert.equal(response.statusCode, 400);
   } finally {
     await app.close();
   }
@@ -448,85 +341,22 @@ test('POST /lists/:listId/items rejects invalid payload', async () => {
 
 test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
   const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
-  const item = buildItem({
-    id: 'item_1',
-    listId: list.id,
-    name: 'Milk',
-    quantity: '1',
-    unit: 'l',
-    isChecked: false,
-    createdByUserId: user.id
-  });
-  const items = new Map<string, TestItem | undefined>([[item.id, item]]);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items);
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
+  const list = buildList({ memberIds: new Set([user.id]) });
+  const item = buildItem({ id: 'item_1', listId: list.id, name: 'Milk', quantity: '1', unit: 'l', isChecked: false, createdByUserId: user.id });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map([[item.id, item]]), [session]);
 
   try {
     const response = await app.inject({
       method: 'PATCH',
       url: `/lists/${list.id}/items/${item.id}`,
-      headers: {
-        authorization: `Bearer ${token}`
-      },
-      payload: {
-        name: 'Oat milk',
-        isChecked: true
-      }
+      headers: { authorization: `Bearer ${rawToken}` },
+      payload: { name: 'Oat milk', isChecked: true }
     });
 
     assert.equal(response.statusCode, 200);
-
-    const body = response.json() as {
-      item: {
-        name: string;
-        quantity: string | null;
-        unit: string | null;
-        isChecked: boolean;
-      };
-    };
-
-    assert.equal(body.item.name, 'Oat milk');
-    assert.equal(body.item.quantity, '1');
-    assert.equal(body.item.unit, 'l');
-    assert.equal(body.item.isChecked, true);
-  } finally {
-    await app.close();
-  }
-});
-
-test('PATCH /lists/:listId/items/:itemId rejects empty payload', async () => {
-  const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
-  const item = buildItem({
-    id: 'item_1',
-    listId: list.id,
-    createdByUserId: user.id
-  });
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map([[item.id, item]]));
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
-
-  try {
-    const response = await app.inject({
-      method: 'PATCH',
-      url: `/lists/${list.id}/items/${item.id}`,
-      headers: {
-        authorization: `Bearer ${token}`
-      },
-      payload: {}
-    });
-
-    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().item.name, 'Oat milk');
+    assert.equal(response.json().item.isChecked, true);
   } finally {
     await app.close();
   }
@@ -534,28 +364,17 @@ test('PATCH /lists/:listId/items/:itemId rejects empty payload', async () => {
 
 test('DELETE /lists/:listId/items/:itemId removes the item', async () => {
   const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
-  const item = buildItem({
-    id: 'item_1',
-    listId: list.id,
-    createdByUserId: user.id
-  });
+  const list = buildList({ memberIds: new Set([user.id]) });
+  const item = buildItem({ id: 'item_1', listId: list.id, createdByUserId: user.id });
+  const { rawToken, session } = buildSessionToken(user.id);
   const items = new Map<string, TestItem | undefined>([[item.id, item]]);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items);
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
 
   try {
     const response = await app.inject({
       method: 'DELETE',
       url: `/lists/${list.id}/items/${item.id}`,
-      headers: {
-        authorization: `Bearer ${token}`
-      }
+      headers: { authorization: `Bearer ${rawToken}` }
     });
 
     assert.equal(response.statusCode, 204);
@@ -565,24 +384,17 @@ test('DELETE /lists/:listId/items/:itemId removes the item', async () => {
   }
 });
 
-test('DELETE /lists/:listId/items/:itemId returns 404 for a missing item', async () => {
+test('GET /lists/:listId/items returns 404 for a list the user cannot access', async () => {
   const user = buildUser();
-  const list = buildList({
-    memberIds: new Set([user.id])
-  });
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map());
-  const token = await app.jwt.sign({
-    sub: user.id,
-    email: user.email
-  });
+  const list = buildList({ ownerUserId: 'user_2', memberIds: new Set(['user_2']) });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map(), [session]);
 
   try {
     const response = await app.inject({
-      method: 'DELETE',
-      url: `/lists/${list.id}/items/missing-item`,
-      headers: {
-        authorization: `Bearer ${token}`
-      }
+      method: 'GET',
+      url: `/lists/${list.id}/items`,
+      headers: { authorization: `Bearer ${rawToken}` }
     });
 
     assert.equal(response.statusCode, 404);

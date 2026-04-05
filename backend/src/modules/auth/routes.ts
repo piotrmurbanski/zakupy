@@ -1,40 +1,47 @@
-import argon2 from 'argon2';
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
 import { prisma } from '../../lib/prisma.js';
+import type { AuthPrisma, UserRecord } from '../../lib/types.js';
 import { toUserResponse } from './utils.js';
+import {
+  AUTH_CODE_MAX_ATTEMPTS,
+  AUTH_CODE_RESEND_WINDOW_SECONDS,
+  authenticateRequest,
+  deriveDisplayName,
+  generateOneTimeCode,
+  generateSessionToken,
+  getCodeExpiryDate,
+  getSessionExpiryDate,
+  hashSecret,
+  normalizeEmail
+} from './session.js';
 
 type AuthRoutesDeps = {
-  prisma: Pick<PrismaClient, 'user'>;
-  hashPassword: (password: string) => Promise<string>;
-  verifyPassword: (hash: string, password: string) => Promise<boolean>;
+  prisma: Pick<AuthPrisma, 'authCode' | 'authSession' | 'listInvitation' | 'listMember' | 'user'>;
+  now: () => Date;
+  sendAuthCode: (params: { email: string; code: string }) => Promise<void>;
 };
 
-type JwtUserPayload = {
-  sub: string;
-  email: string;
-};
+const emailSchema = z.string().trim().email().transform((value) => value.toLowerCase());
 
-const loginBodySchema = z.object({
-  email: z.string().trim().email().transform((value) => value.toLowerCase()),
-  password: z.string().min(1).max(128)
+const requestCodeBodySchema = z.object({
+  email: emailSchema,
+  displayName: z.string().trim().min(2).max(50).optional()
 });
 
-const registerBodySchema = z.object({
-  email: z.string().trim().email().transform((value) => value.toLowerCase()),
-  password: z.string().min(8).max(128),
-  displayName: z.string().trim().min(2).max(50)
+const verifyCodeBodySchema = z.object({
+  email: emailSchema,
+  code: z.string().trim().regex(/^\d{6}$/),
+  displayName: z.string().trim().min(2).max(50).optional()
 });
 
 const defaultDeps: AuthRoutesDeps = {
   prisma,
-  hashPassword: async (password) =>
-    argon2.hash(password, {
-      type: argon2.argon2id
-    }),
-  verifyPassword: async (hash, password) => argon2.verify(hash, password)
+  now: () => new Date(),
+  sendAuthCode: async ({ email, code }) => {
+    console.info(`[auth] Sign-in code for ${email}: ${code}`);
+  }
 };
 
 function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
@@ -47,100 +54,210 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   return result.data;
 }
 
-async function authenticateUser(deps: AuthRoutesDeps, email: string, password: string) {
-  const user = await deps.prisma.user.findUnique({
+async function findLatestActiveCode(deps: AuthRoutesDeps, email: string) {
+  return deps.prisma.authCode.findFirst({
     where: {
-      email
+      email,
+      consumedAt: null
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+}
+
+async function claimPendingInvitations(deps: AuthRoutesDeps, user: UserRecord, now: Date) {
+  const invitations = await deps.prisma.listInvitation.findMany({
+    where: {
+      email: user.email,
+      claimedAt: null
     }
   });
 
-  if (!user) {
-    return null;
+  for (const invitation of invitations) {
+    const existingMembership = await deps.prisma.listMember.findUnique({
+      where: {
+        listId_userId: {
+          listId: invitation.listId,
+          userId: user.id
+        }
+      }
+    });
+
+    if (!existingMembership) {
+      await deps.prisma.listMember.create({
+        data: {
+          listId: invitation.listId,
+          userId: user.id,
+          role: invitation.role
+        }
+      });
+    }
+
+    await deps.prisma.listInvitation.update({
+      where: {
+        id: invitation.id
+      },
+      data: {
+        claimedAt: now,
+        claimedByUserId: user.id
+      }
+    });
   }
-
-  const passwordMatches = await deps.verifyPassword(user.passwordHash, password);
-
-  if (!passwordMatches) {
-    return null;
-  }
-
-  return user;
 }
 
 export function createAuthRoutes(deps: AuthRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
-    app.post('/auth/register', async (request, reply) => {
-      const body = parseBody(registerBodySchema, request.body);
+    app.post('/auth/request-code', async (request, reply) => {
+      const body = parseBody(requestCodeBodySchema, request.body);
 
       if (!body) {
         return reply.badRequest('Invalid request body');
       }
 
-      const existingUser = await deps.prisma.user.findUnique({
-        where: {
-          email: body.email
-        }
-      });
+      const email = normalizeEmail(body.email);
+      const now = deps.now();
+      const latestCode = await findLatestActiveCode(deps, email);
 
-      if (existingUser) {
-        return reply.conflict('User with this email already exists');
+      if (latestCode && now.getTime() - latestCode.createdAt.getTime() < AUTH_CODE_RESEND_WINDOW_SECONDS * 1000) {
+        return reply.tooManyRequests('Please wait before requesting another code');
       }
 
-      const passwordHash = await deps.hashPassword(body.password);
+      const code = generateOneTimeCode();
 
-      const user = await deps.prisma.user.create({
+      await deps.prisma.authCode.create({
         data: {
-          email: body.email,
-          passwordHash,
-          displayName: body.displayName
+          email,
+          codeHash: hashSecret(code),
+          expiresAt: getCodeExpiryDate(now)
         }
       });
 
-      const accessToken = await reply.jwtSign({
-        sub: user.id,
-        email: user.email
+      await deps.sendAuthCode({
+        email,
+        code
       });
 
-      return reply.code(201).send({
-        accessToken,
-        user: toUserResponse(user)
+      return reply.code(202).send({
+        status: 'code_sent'
       });
     });
 
-    app.post('/auth/login', async (request, reply) => {
-      const body = parseBody(loginBodySchema, request.body);
+    app.post('/auth/verify-code', async (request, reply) => {
+      const body = parseBody(verifyCodeBodySchema, request.body);
 
       if (!body) {
         return reply.badRequest('Invalid request body');
       }
 
-      const user = await authenticateUser(deps, body.email, body.password);
+      const email = normalizeEmail(body.email);
+      const now = deps.now();
+      const authCode = await findLatestActiveCode(deps, email);
 
-      if (!user) {
-        return reply.unauthorized('Invalid email or password');
+      if (!authCode) {
+        return reply.unauthorized('Invalid email or code');
       }
 
-      const accessToken = await reply.jwtSign({
-        sub: user.id,
-        email: user.email
+      if (authCode.expiresAt.getTime() <= now.getTime()) {
+        return reply.unauthorized('Code expired');
+      }
+
+      if (authCode.attemptCount >= AUTH_CODE_MAX_ATTEMPTS) {
+        return reply.tooManyRequests('Too many invalid attempts');
+      }
+
+      if (authCode.codeHash !== hashSecret(body.code)) {
+        await deps.prisma.authCode.update({
+          where: {
+            id: authCode.id
+          },
+          data: {
+            attemptCount: authCode.attemptCount + 1
+          }
+        });
+
+        return reply.unauthorized('Invalid email or code');
+      }
+
+      await deps.prisma.authCode.update({
+        where: {
+          id: authCode.id
+        },
+        data: {
+          consumedAt: now
+        }
+      });
+
+      let user = await deps.prisma.user.findUnique({
+        where: {
+          email
+        }
+      });
+
+      if (!user) {
+        user = await deps.prisma.user.create({
+          data: {
+            email,
+            displayName: body.displayName?.trim() || deriveDisplayName(email)
+          }
+        });
+      }
+
+      await claimPendingInvitations(deps, user, now);
+
+      const sessionToken = generateSessionToken();
+
+      await deps.prisma.authSession.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashSecret(sessionToken),
+          expiresAt: getSessionExpiryDate(now)
+        }
       });
 
       return {
-        accessToken,
+        sessionToken,
         user: toUserResponse(user)
       };
     });
 
-    app.get('/auth/me', async (request) => {
-      const payload = await request.jwtVerify<JwtUserPayload>();
-      const user = await deps.prisma.user.findUnique({
+    app.post('/auth/logout', async (request, reply) => {
+      const token = request.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
+
+      if (!token) {
+        return reply.unauthorized('Missing session token');
+      }
+
+      const session = await deps.prisma.authSession.findFirst({
         where: {
-          id: payload.sub
+          tokenHash: hashSecret(token),
+          revokedAt: null
         }
       });
 
+      if (!session) {
+        return reply.unauthorized('Invalid session');
+      }
+
+      await deps.prisma.authSession.update({
+        where: {
+          id: session.id
+        },
+        data: {
+          revokedAt: deps.now()
+        }
+      });
+
+      return {
+        status: 'logged_out'
+      };
+    });
+
+    app.get('/auth/me', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
       if (!user) {
-        return request.server.httpErrors.unauthorized('User not found');
+        return;
       }
 
       return {

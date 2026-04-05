@@ -1,13 +1,9 @@
-import type { ListMember, PrismaClient, ShoppingList, User } from '@prisma/client';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import { prisma } from '../../lib/prisma.js';
-
-type JwtUserPayload = {
-  sub: string;
-  email: string;
-};
+import type { InvitationRecord, UserRecord } from '../../lib/types.js';
+import { authenticateRequest, normalizeEmail } from '../auth/session.js';
 
 type ListResponse = {
   id: string;
@@ -31,15 +27,167 @@ type MemberResponse = {
   };
 };
 
-type ListRepository = Pick<PrismaClient['shoppingList'], 'findMany' | 'findFirst' | 'create' | 'update' | 'delete'>;
-type ListMemberRepository = Pick<PrismaClient['listMember'], 'findUnique' | 'create' | 'delete'>;
-type UserRepository = Pick<PrismaClient['user'], 'findUnique'>;
+type InvitationResponse = {
+  id: string;
+  listId: string;
+  email: string;
+  role: string;
+  status: 'pending';
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ListRecord = {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type MemberRecord = {
+  id: string;
+  listId: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ListRepository = {
+  findMany(args: {
+    where?: {
+      members?: {
+        some?: {
+          userId?: string;
+        };
+      };
+    };
+    orderBy?: {
+      updatedAt: 'asc' | 'desc';
+    };
+  }): Promise<ListRecord[]>;
+  findFirst(args: {
+    where: {
+      id?: string;
+      members?: {
+        some?: {
+          userId?: string;
+        };
+      };
+    };
+  }): Promise<ListRecord | null>;
+  create(args: {
+    data: {
+      name: string;
+      ownerUserId: string;
+      members?: {
+        create?: {
+          userId: string;
+          role: 'owner' | 'editor';
+        };
+      };
+    };
+  }): Promise<ListRecord>;
+  update(args: {
+    where: {
+      id: string;
+    };
+    data: {
+      name?: string;
+    };
+  }): Promise<ListRecord>;
+  delete(args: {
+    where: {
+      id: string;
+    };
+  }): Promise<ListRecord>;
+};
+
+type ListMemberRepository = {
+  findUnique(args: {
+    where: {
+      listId_userId: {
+        listId: string;
+        userId: string;
+      };
+    };
+  }): Promise<MemberRecord | null>;
+  create(args: {
+    data: {
+      listId: string;
+      userId: string;
+      role: 'owner' | 'editor';
+    };
+    include?: {
+      user?: boolean;
+    };
+  }): Promise<MemberRecord & { user?: Pick<UserRecord, 'id' | 'email' | 'displayName'> }>;
+  delete(args: {
+    where: {
+      listId_userId: {
+        listId: string;
+        userId: string;
+      };
+    };
+  }): Promise<MemberRecord>;
+};
+
+type UserRepository = {
+  findUnique(args: {
+    where: {
+      id?: string;
+      email?: string;
+    };
+  }): Promise<UserRecord | null>;
+};
+
+type AuthSessionRepository = {
+  findFirst(args: {
+    where: {
+      tokenHash?: string;
+      revokedAt?: null;
+    };
+    include?: {
+      user?: boolean;
+    };
+  }): Promise<({ id: string; expiresAt: Date; user?: UserRecord } & Record<string, unknown>) | null>;
+  update(args: {
+    where: {
+      id: string;
+    };
+    data: {
+      lastUsedAt?: Date;
+    };
+  }): Promise<unknown>;
+};
+
+type InvitationRepository = {
+  findUnique(args: {
+    where: {
+      listId_email: {
+        listId: string;
+        email: string;
+      };
+    };
+  }): Promise<InvitationRecord | null>;
+  create(args: {
+    data: {
+      listId: string;
+      email: string;
+      role: 'owner' | 'editor';
+      invitedByUserId: string;
+    };
+  }): Promise<InvitationRecord>;
+};
 
 type ListRoutesDeps = {
   prisma: {
     shoppingList: ListRepository;
     listMember: ListMemberRepository;
     user: UserRepository;
+    authSession: AuthSessionRepository;
+    listInvitation: InvitationRepository;
   };
 };
 
@@ -52,10 +200,10 @@ const listMemberBodySchema = z.object({
 });
 
 const defaultDeps = {
-  prisma
-} satisfies ListRoutesDeps;
+  prisma: prisma as unknown as ListRoutesDeps['prisma']
+};
 
-function toListResponse(list: Pick<ShoppingList, 'id' | 'name' | 'ownerUserId' | 'createdAt' | 'updatedAt'>): ListResponse {
+function toListResponse(list: Pick<ListRecord, 'id' | 'name' | 'ownerUserId' | 'createdAt' | 'updatedAt'>): ListResponse {
   return {
     id: list.id,
     name: list.name,
@@ -66,8 +214,8 @@ function toListResponse(list: Pick<ShoppingList, 'id' | 'name' | 'ownerUserId' |
 }
 
 function toMemberResponse(
-  member: Pick<ListMember, 'id' | 'listId' | 'userId' | 'role' | 'createdAt' | 'updatedAt'> & {
-    user: Pick<User, 'id' | 'email' | 'displayName'>;
+  member: Pick<MemberRecord, 'id' | 'listId' | 'userId' | 'role' | 'createdAt' | 'updatedAt'> & {
+    user: Pick<UserRecord, 'id' | 'email' | 'displayName'>;
   }
 ): MemberResponse {
   return {
@@ -85,6 +233,18 @@ function toMemberResponse(
   };
 }
 
+function toInvitationResponse(invitation: Pick<InvitationRecord, 'id' | 'listId' | 'email' | 'role' | 'createdAt' | 'updatedAt'>): InvitationResponse {
+  return {
+    id: invitation.id,
+    listId: invitation.listId,
+    email: invitation.email,
+    role: invitation.role,
+    status: 'pending',
+    createdAt: invitation.createdAt,
+    updatedAt: invitation.updatedAt
+  };
+}
+
 function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   const result = schema.safeParse(body);
 
@@ -93,26 +253,6 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
   }
 
   return result.data;
-}
-
-async function authenticateRequest(
-  deps: ListRoutesDeps,
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<Pick<User, 'id' | 'email' | 'displayName' | 'createdAt' | 'updatedAt'> | null> {
-  const payload = await request.jwtVerify<JwtUserPayload>();
-  const user = await deps.prisma.user.findUnique({
-    where: {
-      id: payload.sub
-    }
-  });
-
-  if (!user) {
-    reply.unauthorized('User not found');
-    return null;
-  }
-
-  return user;
 }
 
 async function findVisibleList(deps: ListRoutesDeps, userId: string, listId: string) {
@@ -152,7 +292,7 @@ async function ensureOwnedVisibleList(
 export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
     app.get('/lists', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -177,7 +317,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.post('/lists', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -208,7 +348,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.get('/lists/:listId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -227,7 +367,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.patch('/lists/:listId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -265,7 +405,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.delete('/lists/:listId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -292,7 +432,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
     });
 
     app.post('/lists/:listId/members', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
@@ -311,14 +451,39 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
         return reply.badRequest('Invalid request body');
       }
 
+      const normalizedEmail = normalizeEmail(body.email);
       const invitedUser = await deps.prisma.user.findUnique({
         where: {
-          email: body.email
+          email: normalizedEmail
         }
       });
 
       if (!invitedUser) {
-        return reply.notFound('User not found');
+        const existingInvitation = await deps.prisma.listInvitation.findUnique({
+          where: {
+            listId_email: {
+              listId,
+              email: normalizedEmail
+            }
+          }
+        });
+
+        if (existingInvitation) {
+          return reply.conflict('Invitation is already pending for this email');
+        }
+
+        const invitation = await deps.prisma.listInvitation.create({
+          data: {
+            listId,
+            email: normalizedEmail,
+            role: 'editor',
+            invitedByUserId: user.id
+          }
+        });
+
+        return reply.code(202).send({
+          invitation: toInvitationResponse(invitation)
+        });
       }
 
       const existingMember = await deps.prisma.listMember.findUnique({
@@ -345,13 +510,22 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
         }
       });
 
+      if (!member.user) {
+        throw new Error('Expected included user on list member create');
+      }
+
+      const memberWithUser = {
+        ...member,
+        user: member.user
+      };
+
       return reply.code(201).send({
-        member: toMemberResponse(member)
+        member: toMemberResponse(memberWithUser)
       });
     });
 
     app.delete('/lists/:listId/members/:userId', async (request, reply) => {
-      const user = await authenticateRequest(deps, request, reply);
+      const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
         return;
