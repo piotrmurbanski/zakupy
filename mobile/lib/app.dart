@@ -6,26 +6,68 @@ import 'features/auth/auth_repository.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 
-const _defaultApiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+const _defaultApiBaseUrl =
+    String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
-class ZakupyApp extends StatelessWidget {
+ThemeData buildLightTheme() {
+  return ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color(0xFF2F6B3B),
+      brightness: Brightness.light,
+    ),
+    useMaterial3: true,
+  );
+}
+
+ThemeData buildDarkTheme() {
+  return ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color(0xFF2F6B3B),
+      brightness: Brightness.dark,
+    ),
+    useMaterial3: true,
+  );
+}
+
+class ZakupyApp extends StatefulWidget {
   const ZakupyApp({super.key});
+
+  @override
+  State<ZakupyApp> createState() => _ZakupyAppState();
+}
+
+class _ZakupyAppState extends State<ZakupyApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  void _setThemeMode(ThemeMode themeMode) {
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Zakupy',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6B3B)),
-        useMaterial3: true,
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: _themeMode,
+      home: _AppBootstrapper(
+        themeMode: _themeMode,
+        onThemeModeChanged: _setThemeMode,
       ),
-      home: const _AppBootstrapper(),
     );
   }
 }
 
 class _AppBootstrapper extends StatefulWidget {
-  const _AppBootstrapper();
+  const _AppBootstrapper({
+    required this.themeMode,
+    required this.onThemeModeChanged,
+  });
+
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   State<_AppBootstrapper> createState() => _AppBootstrapperState();
@@ -78,6 +120,8 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
             session: state.session!,
             authRepository: _authRepository,
             onLogout: _sessionController.logout,
+            themeMode: widget.themeMode,
+            onThemeModeChanged: widget.onThemeModeChanged,
           );
         }
 
@@ -85,6 +129,8 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
           initialBaseUrl: _defaultApiBaseUrl,
           isSubmitting: state.status == SessionStatus.loading,
           errorMessage: state.errorMessage,
+          themeMode: widget.themeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
           onLogin: ({
             required String baseUrl,
             required String email,

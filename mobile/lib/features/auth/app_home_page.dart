@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
+import '../../core/theme/theme_mode_menu.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
 import 'auth_session_store.dart';
@@ -11,12 +12,16 @@ class AppHomePage extends StatefulWidget {
     required this.session,
     required this.authRepository,
     required this.onLogout,
+    required this.themeMode,
+    required this.onThemeModeChanged,
     super.key,
   });
 
   final StoredAuthSession session;
   final AuthRepository authRepository;
   final Future<void> Function() onLogout;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   State<AppHomePage> createState() => _AppHomePageState();
@@ -241,6 +246,10 @@ class _AppHomePageState extends State<AppHomePage> {
           IconButton(
             onPressed: _isUpdating ? null : () => _loadLists(),
             icon: const Icon(Icons.refresh),
+          ),
+          ThemeModeMenuButton(
+            currentThemeMode: widget.themeMode,
+            onSelected: widget.onThemeModeChanged,
           ),
           PopupMenuButton<String>(
             onSelected: (value) async {
