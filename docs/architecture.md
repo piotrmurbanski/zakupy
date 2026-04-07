@@ -60,6 +60,15 @@ It is also a good stepping stone:
 - the backend can later add websockets, workers, and notifications
 - the database model can grow without rethinking the core design
 
+## Delivery pipeline
+
+The backend delivery path should stay lightweight:
+- GitHub Actions runs CI for backend changes
+- GitHub Actions builds and publishes a Docker image to a registry
+- the QNAP host pulls the published image and restarts the stack with Docker Compose
+
+This keeps production close to local Docker usage while avoiding source builds on the NAS.
+
 ## Mobile application
 
 ### Recommended stack
