@@ -127,6 +127,21 @@ Zakres pierwszej wersji:
 
 To już pokrywa obecna implementacja backendu i mobile. Następne rozsądne kroki to dopięcie pełnego testowania end-to-end oraz dalsze uspójnianie UX pod użycie na dwóch realnych telefonach.
 
+## CI/CD backendu
+
+Repo zawiera teraz prosty flow pod QNAP:
+- CI: [`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml)
+- publikacja obrazu: [`.github/workflows/backend-cd.yml`](.github/workflows/backend-cd.yml)
+- produkcyjny Compose dla NAS-a: [`infra/docker-compose.qnap.yml`](infra/docker-compose.qnap.yml)
+- instrukcja wdrożenia: [`docs/backend-cicd-qnap.md`](docs/backend-cicd-qnap.md)
+
+Docelowy przepływ jest taki:
+1. pushujesz zmiany backendu na `main`
+2. GitHub Actions buduje i publikuje obraz do GHCR
+3. QNAP pobiera nowy obraz przez `sh scripts/deploy-backend.sh`
+
+To daje prosty, przewidywalny deployment bez budowania aplikacji na samym QNAP-ie.
+
 ## Najbliższe kroki
 
 1. Dopięcie pełnego testowania end-to-end na dwóch realnych urządzeniach.

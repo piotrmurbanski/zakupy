@@ -37,7 +37,7 @@ const verifyCodeBodySchema = z.object({
 });
 
 const defaultDeps: AuthRoutesDeps = {
-  prisma,
+  prisma: prisma as unknown as AuthRoutesDeps['prisma'],
   now: () => new Date(),
   sendAuthCode: async ({ email, code }) => {
     console.info(`[auth] Sign-in code for ${email}: ${code}`);
