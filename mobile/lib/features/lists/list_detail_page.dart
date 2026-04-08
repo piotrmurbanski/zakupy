@@ -13,6 +13,7 @@ class ListDetailPage extends StatefulWidget {
     this.listName,
     this.canManageList = false,
     this.onUnauthorized,
+    this.shareEmailHistoryStore,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class ListDetailPage extends StatefulWidget {
   final String? listName;
   final bool canManageList;
   final Future<void> Function()? onUnauthorized;
+  final ShareEmailHistoryStore? shareEmailHistoryStore;
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -33,6 +35,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       <String, _PendingItemMutation>{};
 
   late String _listName;
+  late final ShareEmailHistoryStore _shareEmailHistoryStore;
   bool _isLoading = true;
   bool _isSharing = false;
   bool _didMutateList = false;
@@ -43,6 +46,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
   @override
   void initState() {
     super.initState();
+    _shareEmailHistoryStore =
+        widget.shareEmailHistoryStore ?? SecureShareEmailHistoryStore();
     _listName = widget.listName ?? 'List ${widget.listId}';
     _reloadItems();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -416,7 +421,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
-    final email = await showShareListDialog(context);
+    final email = await showShareListDialog(
+      context,
+      historyStore: _shareEmailHistoryStore,
+    );
 
     if (email == null) {
       return;
@@ -431,6 +439,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         listId: widget.listId,
         email: email,
       );
+
+      await _shareEmailHistoryStore.rememberEmail(email);
 
       if (!mounted) {
         return;
