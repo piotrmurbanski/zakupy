@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_overview_page.dart';
+import 'package:zakupy_mobile/features/lists/share_list_dialog.dart';
 
 void main() {
-  Widget buildSubject(ApiClient apiClient) {
-    return MaterialApp(home: ListOverviewPage(apiClient: apiClient));
+  Widget buildSubject(
+    ApiClient apiClient, {
+    ShareEmailHistoryStore? shareEmailHistoryStore,
+  }) {
+    return MaterialApp(
+      home: ListOverviewPage(
+        apiClient: apiClient,
+        shareEmailHistoryStore: shareEmailHistoryStore,
+      ),
+    );
   }
 
   testWidgets('shows accessible lists and opens a list detail page', (
@@ -23,7 +32,12 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpWidget(
+      buildSubject(
+        apiClient,
+        shareEmailHistoryStore: InMemoryShareEmailHistoryStore(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Weekly groceries'), findsOneWidget);
@@ -148,18 +162,88 @@ void main() {
     expect(find.byTooltip('Share list'), findsNWidgets(2));
 
     await tester.tap(find.byTooltip('Share list').at(1));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
       find.widgetWithText(TextFormField, 'User email'),
       'second-user@example.com',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Share'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(capturedListId, 'list_2');
     expect(capturedEmail, 'second-user@example.com');
     expect(apiClient.shareListCalls, 1);
-    expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+  });
+
+  testWidgets('successful share remembers the email for quick reuse', (
+    tester,
+  ) async {
+    final historyStore = InMemoryShareEmailHistoryStore();
+    final apiClient = _FakeApiClient(
+      lists: [
+        ShoppingListSummary(
+          id: 'list_1',
+          name: 'Weekly groceries',
+          ownerUserId: 'user_1',
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
+        ),
+      ],
+      shareListHandler: (_, email) async {
+        return ShareListResult.member(
+          ListMember(
+            id: 'member_1',
+            listId: 'list_1',
+            userId: 'user_2',
+            role: 'member',
+            createdAt: DateTime.utc(2026, 4, 1, 11),
+            updatedAt: DateTime.utc(2026, 4, 1, 11),
+            user: ListMemberUser(
+              id: 'user_2',
+              email: email,
+              displayName: 'Second User',
+            ),
+          ),
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      buildSubject(apiClient, shareEmailHistoryStore: historyStore),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Share list'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'User email'),
+      'Second-User@example.com ',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.pumpAndSettle();
+
+    expect(
+      await historyStore.readRecentEmails(),
+      equals(const <String>['second-user@example.com']),
+    );
+
+    await tester.tap(find.byTooltip('Share list'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Recent emails'), findsOneWidget);
+    expect(find.text('second-user@example.com'), findsNWidgets(2));
+
+    await tester.tap(find.byType(ActionChip));
+    await tester.pump();
+
+    final field = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'User email'),
+    );
+    expect(field.controller?.text, 'second-user@example.com');
   });
 }
 

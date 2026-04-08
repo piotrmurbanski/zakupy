@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_detail_page.dart';
+import 'package:zakupy_mobile/features/lists/share_list_dialog.dart';
 
 void main() {
   Widget buildSubject(
     _FakeApiClient apiClient, {
     bool canManageList = false,
+    ShareEmailHistoryStore? shareEmailHistoryStore,
   }) {
     return MaterialApp(
       home: ListDetailPage(
@@ -16,6 +18,8 @@ void main() {
         listId: 'list_1',
         listName: 'Weekly groceries',
         canManageList: canManageList,
+        shareEmailHistoryStore:
+            shareEmailHistoryStore ?? InMemoryShareEmailHistoryStore(),
       ),
     );
   }
@@ -56,6 +60,7 @@ void main() {
   });
 
   testWidgets('shares a list and shows success feedback', (tester) async {
+    final historyStore = InMemoryShareEmailHistoryStore();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
       shareListHandler: (_, email) async {
@@ -77,7 +82,9 @@ void main() {
       },
     );
 
-    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpWidget(
+      buildSubject(apiClient, shareEmailHistoryStore: historyStore),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.more_vert));
@@ -93,6 +100,10 @@ void main() {
 
     expect(apiClient.shareListCalls, 1);
     expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+    expect(
+      await historyStore.readRecentEmails(),
+      equals(const <String>['second-user@example.com']),
+    );
   });
 
   testWidgets('shows pending invitation feedback for inactive email', (
@@ -536,14 +547,14 @@ class _FakeApiClient extends ApiClient {
 
     return ShareListResult.member(
       ListMember(
-        id: 'member_${shareListCalls}',
+        id: 'member_$shareListCalls',
         listId: listId,
-        userId: 'user_${shareListCalls}',
+        userId: 'user_$shareListCalls',
         role: 'member',
         createdAt: DateTime.utc(2026, 4, 1, 11),
         updatedAt: DateTime.utc(2026, 4, 1, 11),
         user: ListMemberUser(
-          id: 'user_${shareListCalls}',
+          id: 'user_$shareListCalls',
           email: email,
           displayName: 'Shared User',
         ),
