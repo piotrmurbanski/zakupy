@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_client.dart';
 import 'auth_repository.dart';
+import 'backend_url_store.dart';
 import 'auth_session_store.dart';
 import 'auth_models.dart';
 
@@ -28,12 +29,15 @@ class SessionController extends ValueNotifier<SessionState> {
   SessionController({
     required AuthSessionStore sessionStore,
     required AuthRepository authRepository,
+    required BackendUrlStore backendUrlStore,
   })  : _sessionStore = sessionStore,
         _authRepository = authRepository,
+        _backendUrlStore = backendUrlStore,
         super(const SessionState.loading());
 
   final AuthSessionStore _sessionStore;
   final AuthRepository _authRepository;
+  final BackendUrlStore _backendUrlStore;
 
   Future<void> bootstrap() async {
     value = const SessionState.loading();
@@ -57,6 +61,7 @@ class SessionController extends ValueNotifier<SessionState> {
           ));
 
       await _sessionStore.write(session);
+      await _backendUrlStore.write(storedSession.baseUrl);
       value = SessionState.authenticated(session);
     } on ApiException catch (error) {
       await _sessionStore.clear();
@@ -109,6 +114,7 @@ class SessionController extends ValueNotifier<SessionState> {
           baseUrl: normalizeBaseUrl(baseUrl), session: response);
 
       await _sessionStore.write(session);
+      await _backendUrlStore.write(session.baseUrl);
       value = SessionState.authenticated(session);
     } on ApiException catch (error) {
       value = SessionState.unauthenticated(errorMessage: error.message);
@@ -134,5 +140,16 @@ class SessionController extends ValueNotifier<SessionState> {
 
     await _sessionStore.clear();
     value = const SessionState.unauthenticated();
+  }
+
+  Future<String?> readPreferredBackendUrl() {
+    return _backendUrlStore.read();
+  }
+
+  Future<void> updateBackendUrl(String baseUrl) async {
+    final normalized = normalizeBaseUrl(baseUrl);
+
+    await _backendUrlStore.write(normalized);
+    await logout();
   }
 }

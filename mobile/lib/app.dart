@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'features/auth/app_home_page.dart';
 import 'features/auth/auth_page.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/auth/backend_url_store.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 import 'features/auth/settings_page.dart';
@@ -75,16 +76,20 @@ class _AppBootstrapper extends StatefulWidget {
 }
 
 class _AppBootstrapperState extends State<_AppBootstrapper> {
+  late final BackendUrlStore _backendUrlStore;
   late final SessionController _sessionController;
   final AuthRepository _authRepository = const AuthRepository();
+  String _preferredBackendUrl = _defaultApiBaseUrl;
   bool _bootstrapComplete = false;
 
   @override
   void initState() {
     super.initState();
+    _backendUrlStore = SecureBackendUrlStore();
     _sessionController = SessionController(
       sessionStore: SecureAuthSessionStore(),
       authRepository: _authRepository,
+      backendUrlStore: _backendUrlStore,
     );
     _restoreSession();
   }
@@ -97,20 +102,41 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
 
   Future<void> _restoreSession() async {
     await _sessionController.bootstrap();
+    final preferredBackendUrl =
+        await _sessionController.readPreferredBackendUrl();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
+      _preferredBackendUrl = preferredBackendUrl ?? _defaultApiBaseUrl;
       _bootstrapComplete = true;
     });
   }
 
   Future<void> _openSettings() async {
+    final currentSession = _sessionController.value.session;
+
+    if (currentSession == null) {
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => SettingsPage(
+          currentBackendUrl: currentSession.baseUrl,
+          onBackendUrlChanged: (updatedBaseUrl) async {
+            await _sessionController.updateBackendUrl(updatedBaseUrl);
+
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {
+              _preferredBackendUrl = normalizeBaseUrl(updatedBaseUrl);
+            });
+          },
           onLogout: _sessionController.logout,
           themeMode: widget.themeMode,
           onThemeModeChanged: widget.onThemeModeChanged,
@@ -140,7 +166,7 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
         }
 
         return AuthPage(
-          initialBaseUrl: _defaultApiBaseUrl,
+          initialBaseUrl: _preferredBackendUrl,
           isSubmitting: state.status == SessionStatus.loading,
           errorMessage: state.errorMessage,
           themeMode: widget.themeMode,
