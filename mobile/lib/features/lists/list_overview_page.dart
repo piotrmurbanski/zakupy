@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import 'list_detail_page.dart';
+import 'share_list_dialog.dart';
 
 class ListOverviewPage extends StatefulWidget {
   const ListOverviewPage({
@@ -86,6 +87,41 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _shareList(ShoppingListSummary list) async {
+    final email = await showShareListDialog(context);
+
+    if (email == null) {
+      return;
+    }
+
+    try {
+      final result = await widget.apiClient.shareList(
+        listId: list.id,
+        email: email,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final message = result.member != null
+          ? 'Shared with ${result.member!.user.email}.'
+          : 'Invitation sent to ${result.invitation!.email}.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not share list: $error')),
+      );
+    }
   }
 
   @override
@@ -184,7 +220,17 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
             onTap: () => _openList(list),
             title: Text(list.name),
             subtitle: Text('Updated ${_formatUpdatedAt(list.updatedAt)}'),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Share list',
+                  onPressed: () => _shareList(list),
+                  icon: const Icon(Icons.share_outlined),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
           ),
         );
       },

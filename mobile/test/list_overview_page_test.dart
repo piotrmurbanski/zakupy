@@ -97,6 +97,70 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'shows a share action for each list row and shares the correct list',
+      (tester) async {
+    String? capturedListId;
+    String? capturedEmail;
+    final apiClient = _FakeApiClient(
+      lists: [
+        ShoppingListSummary(
+          id: 'list_1',
+          name: 'Weekly groceries',
+          ownerUserId: 'user_1',
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
+        ),
+        ShoppingListSummary(
+          id: 'list_2',
+          name: 'Weekend snacks',
+          ownerUserId: 'user_1',
+          createdAt: _createdAt,
+          updatedAt: _updatedAt,
+        ),
+      ],
+      shareListHandler: (listId, email) async {
+        capturedListId = listId;
+        capturedEmail = email;
+
+        return ShareListResult.member(
+          ListMember(
+            id: 'member_1',
+            listId: listId,
+            userId: 'user_2',
+            role: 'member',
+            createdAt: DateTime.utc(2026, 4, 1, 11),
+            updatedAt: DateTime.utc(2026, 4, 1, 11),
+            user: ListMemberUser(
+              id: 'user_2',
+              email: email,
+              displayName: 'Second User',
+            ),
+          ),
+        );
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Share list'), findsNWidgets(2));
+
+    await tester.tap(find.byTooltip('Share list').at(1));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'User email'),
+      'second-user@example.com',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.pumpAndSettle();
+
+    expect(capturedListId, 'list_2');
+    expect(capturedEmail, 'second-user@example.com');
+    expect(apiClient.shareListCalls, 1);
+    expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+  });
 }
 
 final DateTime _createdAt = DateTime.utc(2026, 3, 31, 8);
@@ -107,14 +171,18 @@ class _FakeApiClient extends ApiClient {
     this.lists = const <ShoppingListSummary>[],
     this.listsError,
     this.fetchListsHandler,
+    this.shareListHandler,
   }) : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
 
   final List<ShoppingListSummary> lists;
   final Object? listsError;
   final Future<List<ShoppingListSummary>> Function(int callCount)?
   fetchListsHandler;
+  final Future<ShareListResult> Function(String listId, String email)?
+      shareListHandler;
 
   int fetchListsCalls = 0;
+  int shareListCalls = 0;
 
   @override
   Future<List<ShoppingListSummary>> fetchLists() async {
@@ -135,5 +203,33 @@ class _FakeApiClient extends ApiClient {
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
     return const <ShoppingListItem>[];
+  }
+
+  @override
+  Future<ShareListResult> shareList({
+    required String listId,
+    required String email,
+  }) async {
+    shareListCalls += 1;
+
+    if (shareListHandler != null) {
+      return shareListHandler!(listId, email);
+    }
+
+    return ShareListResult.member(
+      ListMember(
+        id: 'member_$shareListCalls',
+        listId: listId,
+        userId: 'user_$shareListCalls',
+        role: 'member',
+        createdAt: DateTime.utc(2026, 4, 1, 11),
+        updatedAt: DateTime.utc(2026, 4, 1, 11),
+        user: ListMemberUser(
+          id: 'user_$shareListCalls',
+          email: email,
+          displayName: 'Second User',
+        ),
+      ),
+    );
   }
 }
