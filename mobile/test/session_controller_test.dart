@@ -3,19 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/auth/auth_models.dart';
 import 'package:zakupy_mobile/features/auth/auth_repository.dart';
+import 'package:zakupy_mobile/features/auth/backend_url_store.dart';
 import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 import 'package:zakupy_mobile/features/auth/session_controller.dart';
 
 void main() {
   late _InMemorySessionStore sessionStore;
+  late _InMemoryBackendUrlStore backendUrlStore;
   late _FakeAuthRepository authRepository;
   late SessionController controller;
 
   setUp(() {
     sessionStore = _InMemorySessionStore();
+    backendUrlStore = _InMemoryBackendUrlStore();
     authRepository = _FakeAuthRepository();
     controller = SessionController(
-        sessionStore: sessionStore, authRepository: authRepository);
+      sessionStore: sessionStore,
+      authRepository: authRepository,
+      backendUrlStore: backendUrlStore,
+    );
   });
 
   test('bootstrap restores a saved session and refreshes the user', () async {
@@ -30,6 +36,7 @@ void main() {
     expect(controller.value.status, SessionStatus.authenticated);
     expect(controller.value.session?.session.user.displayName, 'Fresh Name');
     expect(sessionStore.savedSession?.session.user.displayName, 'Fresh Name');
+    expect(backendUrlStore.savedBackendUrl, 'http://localhost:3000');
   });
 
   test('bootstrap clears an invalid saved session', () async {
@@ -75,6 +82,7 @@ void main() {
     expect(controller.value.session?.baseUrl, 'http://localhost:3000');
     expect(controller.value.session?.session.sessionToken, 'new-token');
     expect(sessionStore.savedSession?.session.user.displayName, 'Tester');
+    expect(backendUrlStore.savedBackendUrl, 'http://localhost:3000');
   });
 
   test('verifyCode surfaces backend errors without persisting a session',
@@ -92,6 +100,25 @@ void main() {
     expect(controller.value.status, SessionStatus.unauthenticated);
     expect(controller.value.errorMessage, 'Invalid code');
     expect(sessionStore.savedSession, isNull);
+  });
+
+  test('updateBackendUrl persists the new url and clears auth state', () async {
+    final session = StoredAuthSession(
+      baseUrl: 'http://localhost:3000',
+      session: AuthSession(
+        sessionToken: 'session-token',
+        user: _buildUser(),
+      ),
+    );
+    await sessionStore.write(session);
+    controller.value = SessionState.authenticated(session);
+
+    await controller.updateBackendUrl('http://100.113.187.63/');
+
+    expect(controller.value.status, SessionStatus.unauthenticated);
+    expect(sessionStore.savedSession, isNull);
+    expect(backendUrlStore.savedBackendUrl, 'http://100.113.187.63');
+    expect(authRepository.logoutCalls, 1);
   });
 
   test('logout clears the local session and revokes remotely', () async {
@@ -129,6 +156,18 @@ class _InMemorySessionStore extends InMemoryAuthSessionStore {
   @override
   Future<void> clear() async {
     savedSession = null;
+  }
+}
+
+class _InMemoryBackendUrlStore implements BackendUrlStore {
+  String? savedBackendUrl;
+
+  @override
+  Future<String?> read() async => savedBackendUrl;
+
+  @override
+  Future<void> write(String baseUrl) async {
+    savedBackendUrl = baseUrl;
   }
 }
 
