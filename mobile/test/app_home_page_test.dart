@@ -7,91 +7,92 @@ import 'package:zakupy_mobile/features/auth/auth_repository.dart';
 import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 
 void main() {
-  testWidgets('authenticated home hides backend URL controls', (tester) async {
+  Widget buildSubject({
+    required StoredAuthSession session,
+    required VoidCallback onOpenSettings,
+  }) {
+    return MaterialApp(
+      home: AppHomePage(
+        session: session,
+        authRepository: _FakeAuthRepository(),
+        onLogout: () async {},
+        onOpenSettings: () async => onOpenSettings(),
+        themeMode: ThemeMode.system,
+        onThemeModeChanged: (_) {},
+      ),
+    );
+  }
+
+  testWidgets('does not render backend URL controls on the home card', (
+    tester,
+  ) async {
     final session = StoredAuthSession(
       baseUrl: 'http://100.113.187.63',
       session: AuthSession(
         sessionToken: 'session-token',
         user: AuthUser(
           id: 'user_1',
-          email: 'test@test.com',
+          email: 'test@example.com',
           displayName: 'Pio',
           createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
           updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
         ),
       ),
     );
-    final authRepository = _FakeAuthRepository(_FakeApiClient());
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: AppHomePage(
-          session: session,
-          authRepository: authRepository,
-          onLogout: () async {},
-          themeMode: ThemeMode.system,
-          onThemeModeChanged: (_) {},
-        ),
-      ),
+      buildSubject(session: session, onOpenSettings: () {}),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('http://100.113.187.63'), findsNothing);
     expect(find.text('Change backend'), findsNothing);
     expect(find.text('Session saved on this device'), findsNothing);
-    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
   });
 
-  testWidgets('settings action opens the settings screen', (tester) async {
+  testWidgets('opens settings from the app bar action', (tester) async {
+    var settingsOpened = false;
     final session = StoredAuthSession(
       baseUrl: 'http://100.113.187.63',
       session: AuthSession(
         sessionToken: 'session-token',
         user: AuthUser(
           id: 'user_1',
-          email: 'test@test.com',
+          email: 'test@example.com',
           displayName: 'Pio',
           createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
           updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
         ),
       ),
     );
-    final authRepository = _FakeAuthRepository(_FakeApiClient());
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: AppHomePage(
-          session: session,
-          authRepository: authRepository,
-          onLogout: () async {},
-          themeMode: ThemeMode.system,
-          onThemeModeChanged: (_) {},
-        ),
+      buildSubject(
+        session: session,
+        onOpenSettings: () {
+          settingsOpened = true;
+        },
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Advanced configuration will live here.'), findsOneWidget);
+    expect(settingsOpened, isTrue);
   });
 }
 
 class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository(this._apiClient);
-
-  final ApiClient _apiClient;
-
   @override
   ApiClient buildAuthenticatedClient(StoredAuthSession session) {
-    return _apiClient;
+    return _FakeApiClient();
   }
 }
 
 class _FakeApiClient extends ApiClient {
-  _FakeApiClient() : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
+  _FakeApiClient() : super(baseUrl: 'http://localhost:3000', accessToken: 't');
 
   @override
   Future<List<ShoppingListSummary>> fetchLists() async {
@@ -103,3 +104,4 @@ class _FakeApiClient extends ApiClient {
     return const <ShoppingListItem>[];
   }
 }
+

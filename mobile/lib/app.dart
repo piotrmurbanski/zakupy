@@ -5,6 +5,7 @@ import 'features/auth/auth_page.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
+import 'features/auth/settings_page.dart';
 
 const _defaultApiBaseUrl =
     String.fromEnvironment('API_BASE_URL', defaultValue: '');
@@ -106,6 +107,18 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
     });
   }
 
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => SettingsPage(
+          onLogout: _sessionController.logout,
+          themeMode: widget.themeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<SessionState>(
@@ -120,6 +133,7 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
             session: state.session!,
             authRepository: _authRepository,
             onLogout: _sessionController.logout,
+            onOpenSettings: _openSettings,
             themeMode: widget.themeMode,
             onThemeModeChanged: widget.onThemeModeChanged,
           );

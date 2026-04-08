@@ -6,13 +6,13 @@ import '../../core/theme/theme_mode_menu.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
 import 'auth_session_store.dart';
-import 'settings_page.dart';
 
 class AppHomePage extends StatefulWidget {
   const AppHomePage({
     required this.session,
     required this.authRepository,
     required this.onLogout,
+    required this.onOpenSettings,
     required this.themeMode,
     required this.onThemeModeChanged,
     super.key,
@@ -21,6 +21,7 @@ class AppHomePage extends StatefulWidget {
   final StoredAuthSession session;
   final AuthRepository authRepository;
   final Future<void> Function() onLogout;
+  final Future<void> Function() onOpenSettings;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
 
@@ -228,13 +229,7 @@ class _AppHomePageState extends State<AppHomePage> {
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (context) => const SettingsPage(),
-                ),
-              );
-            },
+            onPressed: _isUpdating ? null : widget.onOpenSettings,
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
           ),
