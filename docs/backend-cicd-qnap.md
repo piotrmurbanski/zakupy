@@ -102,6 +102,8 @@ After every merge to `main`:
 
 This is already a valid CD flow: build and release are automated, while deploy on the private host is a single pull-based command.
 
+The current QNAP compose file binds Caddy only on HTTP port `80`, because the bundled `Caddyfile` is HTTP-only and many QNAP setups already use `443`.
+
 ## Optional next step: full automatic deploy
 
 If you later want zero-touch deploys, the safest next options are:
