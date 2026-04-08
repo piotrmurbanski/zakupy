@@ -9,12 +9,14 @@ class ListOverviewPage extends StatefulWidget {
     required this.apiClient,
     this.actions,
     this.header,
+    this.shareEmailHistoryStore,
     super.key,
   });
 
   final ApiClient apiClient;
   final List<Widget>? actions;
   final Widget? header;
+  final ShareEmailHistoryStore? shareEmailHistoryStore;
 
   @override
   State<ListOverviewPage> createState() => _ListOverviewPageState();
@@ -22,6 +24,7 @@ class ListOverviewPage extends StatefulWidget {
 
 class _ListOverviewPageState extends State<ListOverviewPage> {
   final List<ShoppingListSummary> _lists = <ShoppingListSummary>[];
+  late final ShareEmailHistoryStore _shareEmailHistoryStore;
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -29,6 +32,8 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
   @override
   void initState() {
     super.initState();
+    _shareEmailHistoryStore =
+        widget.shareEmailHistoryStore ?? SecureShareEmailHistoryStore();
     _reloadLists();
   }
 
@@ -84,13 +89,17 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
           apiClient: widget.apiClient,
           listId: list.id,
           listName: list.name,
+          shareEmailHistoryStore: _shareEmailHistoryStore,
         ),
       ),
     );
   }
 
   Future<void> _shareList(ShoppingListSummary list) async {
-    final email = await showShareListDialog(context);
+    final email = await showShareListDialog(
+      context,
+      historyStore: _shareEmailHistoryStore,
+    );
 
     if (email == null) {
       return;
@@ -101,6 +110,8 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         listId: list.id,
         email: email,
       );
+
+      await _shareEmailHistoryStore.rememberEmail(email);
 
       if (!mounted) {
         return;
@@ -113,13 +124,13 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
+    } on ApiException catch (error) {
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not share list: $error')),
+        SnackBar(content: Text(error.message)),
       );
     }
   }
