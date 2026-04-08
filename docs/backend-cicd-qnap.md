@@ -26,7 +26,7 @@ git push
 - `.github/workflows/backend-ci.yml`
   installs dependencies, runs Prisma generate, builds the backend, runs tests, and verifies Docker build
 - `.github/workflows/backend-cd.yml`
-  publishes the backend image to GHCR on push to `main`
+  publishes the backend image to GHCR on push to `main` as a multi-arch image for `linux/amd64` and `linux/arm64/v8`
 - `infra/docker-compose.qnap.yml`
   production compose file for QNAP using a prebuilt backend image
 - `infra/qnap.backend.env.example`
@@ -101,6 +101,8 @@ After every merge to `main`:
 2. On QNAP run `sh scripts/deploy-backend.sh`.
 
 This is already a valid CD flow: build and release are automated, while deploy on the private host is a single pull-based command.
+
+If your QNAP is ARM-based, it will automatically pull the `linux/arm64/v8` variant once the multi-arch image is republished.
 
 ## Optional next step: full automatic deploy
 
