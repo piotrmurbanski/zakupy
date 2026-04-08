@@ -6,6 +6,7 @@ import '../../core/theme/theme_mode_menu.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
 import 'auth_session_store.dart';
+import 'settings_page.dart';
 
 class AppHomePage extends StatefulWidget {
   const AppHomePage({
@@ -113,27 +114,6 @@ class _AppHomePageState extends State<AppHomePage> {
         );
       });
     });
-  }
-
-  Future<void> _editBackendUrl() async {
-    final updatedBaseUrl = await _showTextPrompt(
-      title: 'Backend URL',
-      label: 'API base URL',
-      actionLabel: 'Save',
-      initialValue: widget.session.baseUrl,
-      keyboardType: TextInputType.url,
-    );
-
-    if (updatedBaseUrl == null || !mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content:
-            Text('Log out and sign back in to switch the saved backend URL.'),
-      ),
-    );
   }
 
   Future<void> _runMutation(Future<void> Function() action) async {
@@ -247,23 +227,28 @@ class _AppHomePageState extends State<AppHomePage> {
             onPressed: _isUpdating ? null : () => _loadLists(),
             icon: const Icon(Icons.refresh),
           ),
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => const SettingsPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+          ),
           ThemeModeMenuButton(
             currentThemeMode: widget.themeMode,
             onSelected: widget.onThemeModeChanged,
           ),
           PopupMenuButton<String>(
             onSelected: (value) async {
-              if (value == 'backend') {
-                await _editBackendUrl();
-              } else if (value == 'logout') {
+              if (value == 'logout') {
                 await _logout();
               }
             },
             itemBuilder: (context) => const [
-              PopupMenuItem<String>(
-                value: 'backend',
-                child: Text('Backend URL'),
-              ),
               PopupMenuItem<String>(
                 value: 'logout',
                 child: Text('Log out'),
@@ -295,23 +280,6 @@ class _AppHomePageState extends State<AppHomePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(widget.session.session.user.email),
-                    const SizedBox(height: 12),
-                    Text(widget.session.baseUrl,
-                        style: theme.textTheme.bodySmall),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilledButton.tonal(
-                          onPressed: _editBackendUrl,
-                          child: const Text('Change backend'),
-                        ),
-                        const Chip(
-                          label: Text('Session saved on this device'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
