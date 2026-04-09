@@ -24,6 +24,7 @@ class AuthPage extends StatefulWidget {
     required this.themeMode,
     required this.onThemeModeChanged,
     this.initialBaseUrl = '',
+    this.initialEmail = '',
     this.isSubmitting = false,
     this.errorMessage,
     super.key,
@@ -34,6 +35,7 @@ class AuthPage extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final String initialBaseUrl;
+  final String initialEmail;
   final bool isSubmitting;
   final String? errorMessage;
 
@@ -54,7 +56,7 @@ class _AuthPageState extends State<AuthPage> {
   void initState() {
     super.initState();
     _baseUrlController = TextEditingController(text: widget.initialBaseUrl);
-    _emailController = TextEditingController();
+    _emailController = TextEditingController(text: widget.initialEmail);
     _displayNameController = TextEditingController();
     _codeController = TextEditingController();
   }

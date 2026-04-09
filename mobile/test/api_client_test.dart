@@ -271,6 +271,30 @@ void main() {
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
+  test('ApiClient deleteItem sends no json content type or body', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        '',
+        204,
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+    await client.deleteItem('list_1', 'item_1');
+
+    expect(adapter.lastRequest?.path, '/lists/list_1/items/item_1');
+    expect(adapter.lastRequest?.method, 'DELETE');
+    expect(adapter.lastRequest?.data, isNull);
+    expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+  });
+
   test('ApiClient shareList parses a pending invitation response', () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(

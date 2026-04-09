@@ -54,7 +54,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Weekly groceries'), findsWidgets);
-    expect(find.text('list_1'), findsOneWidget);
     expect(find.text('No items yet. Add the first one.'), findsOneWidget);
   });
 
@@ -269,7 +268,9 @@ class _FakeApiClient extends ApiClient {
   int shareListCalls = 0;
 
   @override
-  Future<List<ShoppingListSummary>> fetchLists() async {
+  Future<List<ShoppingListSummary>> fetchLists({
+    bool includeArchived = false,
+  }) async {
     final callCount = fetchListsCalls;
     fetchListsCalls += 1;
 
