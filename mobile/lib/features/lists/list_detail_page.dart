@@ -11,6 +11,7 @@ class ListDetailPage extends StatefulWidget {
     required this.apiClient,
     required this.listId,
     this.listName,
+    this.isArchived = false,
     this.canManageList = false,
     this.onUnauthorized,
     this.shareEmailHistoryStore,
@@ -20,6 +21,7 @@ class ListDetailPage extends StatefulWidget {
   final ApiClient apiClient;
   final String listId;
   final String? listName;
+  final bool isArchived;
   final bool canManageList;
   final Future<void> Function()? onUnauthorized;
   final ShareEmailHistoryStore? shareEmailHistoryStore;
@@ -35,6 +37,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       <String, _PendingItemMutation>{};
 
   late String _listName;
+  late bool _isArchived;
   late final ShareEmailHistoryStore _shareEmailHistoryStore;
   bool _isLoading = true;
   bool _isSharing = false;
@@ -49,6 +52,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     _shareEmailHistoryStore =
         widget.shareEmailHistoryStore ?? SecureShareEmailHistoryStore();
     _listName = widget.listName ?? 'List ${widget.listId}';
+    _isArchived = widget.isArchived;
     _reloadItems();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
@@ -529,6 +533,58 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
+  Future<void> _toggleArchiveStatus() async {
+    if (!widget.canManageList) {
+      return;
+    }
+
+    try {
+      final updatedList = _isArchived
+          ? await widget.apiClient.restoreList(widget.listId)
+          : await widget.apiClient.archiveList(widget.listId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _didMutateList = true;
+        _isArchived = updatedList.isArchived;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updatedList.isArchived
+                ? 'List moved to archive.'
+                : 'List restored.',
+          ),
+        ),
+      );
+
+      Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isArchived
+                ? 'Could not restore list: ${error.message}'
+                : 'Could not archive list: ${error.message}',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _listName;
@@ -563,6 +619,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   _shareList();
                 } else if (action == _ListAction.rename) {
                   _renameList();
+                } else if (action == _ListAction.archive) {
+                  _toggleArchiveStatus();
                 }
               },
               itemBuilder: (context) => [
@@ -575,6 +633,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   const PopupMenuItem<_ListAction>(
                     value: _ListAction.rename,
                     child: Text('Rename list'),
+                  ),
+                if (widget.canManageList)
+                  PopupMenuItem<_ListAction>(
+                    value: _ListAction.archive,
+                    child: Text(_isArchived ? 'Restore list' : 'Archive list'),
                   ),
               ],
             ),
@@ -838,7 +901,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 }
 
-enum _ListAction { share, rename }
+enum _ListAction { share, rename, archive }
 
 enum _PendingItemMutationType { create, update, delete }
 

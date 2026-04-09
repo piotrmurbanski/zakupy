@@ -260,7 +260,7 @@ Magic links can be added later, but the initial contract should assume numeric o
 2. the client calls `POST /auth/request-code`
 3. the backend generates a short-lived one-time code, stores only its hash, and delivers it by email
 4. the app collects the code and calls `POST /auth/verify-code`
-5. after successful verification, the backend creates or reuses the `users` record, claims matching pending invitations, creates a trusted session, and returns an opaque bearer token
+5. after successful verification, the backend creates or reuses the `users` record, creates a trusted session, and returns an opaque bearer token
 6. the app stores that trusted session token securely and restores it on future launches with `GET /auth/me`
 
 ### Trusted-device semantics
@@ -295,8 +295,9 @@ Magic links can be added later, but the initial contract should assume numeric o
 - list owners can share a list with any email address, even if that email has not signed in yet
 - if the email already belongs to an active user, the backend should create a `list_members` row immediately
 - otherwise, the backend should create a `list_invitations` row keyed by normalized email
-- after a successful verification, the backend should atomically claim all pending invitations for the same normalized email and convert them into `list_members`
-- API responses should be able to distinguish active members from pending invitations so mobile can explain share state clearly
+- the backend should expose pending invitations through an authenticated inbox endpoint keyed by the signed-in email
+- invitation acceptance should happen explicitly in the app and only then create `list_members`
+- API responses should distinguish active members from pending invitations so mobile can explain share state clearly
 
 ## API design
 
@@ -319,10 +320,16 @@ Magic links can be added later, but the initial contract should assume numeric o
 - `GET /lists/:listId`
 - `PATCH /lists/:listId`
 - `DELETE /lists/:listId`
+- `POST /lists/:listId/archive`
+- `POST /lists/:listId/restore`
 
 #### members
 - `POST /lists/:listId/members`
 - `DELETE /lists/:listId/members/:userId`
+
+#### invitations
+- `GET /invitations`
+- `POST /invitations/:invitationId/accept`
 
 #### items
 - `GET /lists/:listId/items`
@@ -334,6 +341,7 @@ Magic links can be added later, but the initial contract should assume numeric o
 - only authenticated users can call business endpoints
 - a user must belong to a list to read or modify it
 - only the owner should remove the list or manage members at first
+- only the owner should archive or restore a list
 
 ## Networking and deployment
 

@@ -19,6 +19,8 @@ type TestList = {
   id: string;
   name: string;
   ownerUserId: string;
+  archivedAt: Date | null;
+  archivedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
   memberIds: Set<string>;
@@ -72,6 +74,8 @@ function buildList(overrides: Partial<TestList> = {}): TestList {
     id: 'list_1',
     name: 'Weekly groceries',
     ownerUserId: 'user_1',
+    archivedAt: null,
+    archivedByUserId: null,
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
     updatedAt: new Date('2026-03-29T10:00:00.000Z'),
     memberIds: new Set(['user_1']),
@@ -87,6 +91,12 @@ async function buildApp(
 ) {
   const app = Fastify();
   const membersByKey = new Map<string, TestListMember>();
+  const sentInvitationEmails: Array<{
+    email: string;
+    listName: string;
+    invitedByDisplayName: string;
+    invitedByEmail: string;
+  }> = [];
 
   for (const list of listsById.values()) {
     if (!list) {
@@ -156,10 +166,24 @@ async function buildApp(
       }
     },
     shoppingList: {
-      findMany: async ({ where }: { where?: { members?: { some?: { userId?: string } } } }) => {
+      findMany: async ({
+        where,
+      }: {
+        where?: {
+          members?: { some?: { userId?: string } };
+          archivedAt?: Date | null;
+        };
+      }) => {
         const userId = where?.members?.some?.userId;
+        const archivedAt = where?.archivedAt;
 
-        return [...listsById.values()].filter((list): list is TestList => Boolean(list && (!userId || list.memberIds.has(userId))));
+        return [...listsById.values()].filter((list): list is TestList =>
+          Boolean(
+            list &&
+              (!userId || list.memberIds.has(userId)) &&
+              (archivedAt === undefined || list.archivedAt === archivedAt),
+          ),
+        );
       },
       findFirst: async ({
         where
@@ -208,14 +232,34 @@ async function buildApp(
         listsById.set(list.id, list);
         return list;
       },
-      update: async ({ where, data }: { where: { id: string }; data: { name?: string } }) => {
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: {
+          name?: string;
+          archivedAt?: Date | null;
+          archivedByUserId?: string | null;
+        };
+      }) => {
         const list = listsById.get(where.id);
 
         if (!list) {
           throw new Error('List not found');
         }
 
-        const updated = { ...list, name: data.name ?? list.name, updatedAt: new Date('2026-03-30T10:00:00.000Z') };
+        const updated = {
+          ...list,
+          name: data.name ?? list.name,
+          archivedAt:
+            data.archivedAt !== undefined ? data.archivedAt : list.archivedAt,
+          archivedByUserId:
+            data.archivedByUserId !== undefined
+              ? data.archivedByUserId
+              : list.archivedByUserId,
+          updatedAt: new Date('2026-03-30T10:00:00.000Z'),
+        };
         listsById.set(where.id, updated);
         return updated;
       },
@@ -297,9 +341,16 @@ async function buildApp(
   };
 
   await app.register(sensible);
-  await app.register(createListRoutes({ prisma: prismaMock as never }));
+  await app.register(
+    createListRoutes({
+      prisma: prismaMock as never,
+      sendInvitationEmail: async (params) => {
+        sentInvitationEmails.push(params);
+      },
+    }),
+  );
   await app.ready();
-  return { app, invitations };
+  return { app, invitations, sentInvitationEmails };
 }
 
 function buildSessionToken(userId: string) {
@@ -368,6 +419,54 @@ test('GET /lists returns only lists visible to the user', async () => {
 
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Shared list']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /lists hides archived lists by default and includes them on request', async () => {
+  const user = buildUser();
+  const activeList = buildList({ id: 'list_1', name: 'Active list' });
+  const archivedList = buildList({
+    id: 'list_2',
+    name: 'Archived list',
+    archivedAt: new Date('2026-04-01T12:00:00.000Z'),
+    archivedByUserId: user.id,
+  });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const { app } = await buildApp(
+    new Map([[user.id, user]]),
+    new Map([
+      [activeList.id, activeList],
+      [archivedList.id, archivedList],
+    ]),
+    [session],
+  );
+
+  try {
+    const visibleResponse = await app.inject({
+      method: 'GET',
+      url: '/lists',
+      headers: { authorization: `Bearer ${rawToken}` },
+    });
+
+    assert.equal(visibleResponse.statusCode, 200);
+    assert.deepEqual(
+      visibleResponse.json().items.map((item: { name: string }) => item.name),
+      ['Active list'],
+    );
+
+    const allResponse = await app.inject({
+      method: 'GET',
+      url: '/lists?includeArchived=true',
+      headers: { authorization: `Bearer ${rawToken}` },
+    });
+
+    assert.equal(allResponse.statusCode, 200);
+    assert.deepEqual(
+      allResponse.json().items.map((item: { name: string }) => item.name),
+      ['Active list', 'Archived list'],
+    );
   } finally {
     await app.close();
   }
@@ -447,7 +546,7 @@ test('POST /lists/:listId/members creates a pending invitation for an unknown em
   const owner = buildUser();
   const list = buildList({ id: 'list_1', ownerUserId: owner.id, memberIds: new Set([owner.id]) });
   const { rawToken, session } = buildSessionToken(owner.id);
-  const { app, invitations } = await buildApp(new Map([[owner.id, owner]]), new Map([[list.id, list]]), [session]);
+  const { app, invitations, sentInvitationEmails } = await buildApp(new Map([[owner.id, owner]]), new Map([[list.id, list]]), [session]);
 
   try {
     const response = await app.inject({
@@ -460,6 +559,94 @@ test('POST /lists/:listId/members creates a pending invitation for an unknown em
     assert.equal(response.statusCode, 202);
     assert.equal(response.json().invitation.email, 'missing@example.com');
     assert.equal(invitations.length, 1);
+    assert.equal(sentInvitationEmails.length, 1);
+    assert.equal(sentInvitationEmails[0]?.email, 'missing@example.com');
+  } finally {
+    await app.close();
+  }
+});
+
+test('POST /lists/:listId/archive archives a list for the owner', async () => {
+  const owner = buildUser();
+  const list = buildList({ id: 'list_1', ownerUserId: owner.id });
+  const { rawToken, session } = buildSessionToken(owner.id);
+  const { app } = await buildApp(
+    new Map([[owner.id, owner]]),
+    new Map([[list.id, list]]),
+    [session],
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/lists/${list.id}/archive`,
+      headers: { authorization: `Bearer ${rawToken}` },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().list.isArchived, true);
+    assert.notEqual(response.json().list.archivedAt, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('POST /lists/:listId/restore restores an archived list for the owner', async () => {
+  const owner = buildUser();
+  const list = buildList({
+    id: 'list_1',
+    ownerUserId: owner.id,
+    archivedAt: new Date('2026-04-01T12:00:00.000Z'),
+    archivedByUserId: owner.id,
+  });
+  const { rawToken, session } = buildSessionToken(owner.id);
+  const { app } = await buildApp(
+    new Map([[owner.id, owner]]),
+    new Map([[list.id, list]]),
+    [session],
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/lists/${list.id}/restore`,
+      headers: { authorization: `Bearer ${rawToken}` },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().list.isArchived, false);
+    assert.equal(response.json().list.archivedAt, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('POST /lists/:listId/archive rejects non-owner requests', async () => {
+  const owner = buildUser();
+  const editor = buildUser({ id: 'user_2', email: 'editor@example.com' });
+  const list = buildList({
+    id: 'list_1',
+    ownerUserId: owner.id,
+    memberIds: new Set([owner.id, editor.id]),
+  });
+  const { rawToken, session } = buildSessionToken(editor.id);
+  const { app } = await buildApp(
+    new Map([
+      [owner.id, owner],
+      [editor.id, editor],
+    ]),
+    new Map([[list.id, list]]),
+    [session],
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/lists/${list.id}/archive`,
+      headers: { authorization: `Bearer ${rawToken}` },
+    });
+
+    assert.equal(response.statusCode, 403);
   } finally {
     await app.close();
   }
