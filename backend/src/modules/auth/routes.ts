@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
+import { defaultMailer } from '../../lib/mailer.js';
 import { prisma } from '../../lib/prisma.js';
-import type { AuthPrisma, UserRecord } from '../../lib/types.js';
+import type { AuthPrisma } from '../../lib/types.js';
 import { toUserResponse } from './utils.js';
 import {
   AUTH_CODE_MAX_ATTEMPTS,
@@ -39,9 +40,7 @@ const verifyCodeBodySchema = z.object({
 const defaultDeps: AuthRoutesDeps = {
   prisma: prisma as unknown as AuthRoutesDeps['prisma'],
   now: () => new Date(),
-  sendAuthCode: async ({ email, code }) => {
-    console.info(`[auth] Sign-in code for ${email}: ${code}`);
-  }
+  sendAuthCode: defaultMailer.sendAuthCode,
 };
 
 function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
@@ -64,46 +63,6 @@ async function findLatestActiveCode(deps: AuthRoutesDeps, email: string) {
       createdAt: 'desc'
     }
   });
-}
-
-async function claimPendingInvitations(deps: AuthRoutesDeps, user: UserRecord, now: Date) {
-  const invitations = await deps.prisma.listInvitation.findMany({
-    where: {
-      email: user.email,
-      claimedAt: null
-    }
-  });
-
-  for (const invitation of invitations) {
-    const existingMembership = await deps.prisma.listMember.findUnique({
-      where: {
-        listId_userId: {
-          listId: invitation.listId,
-          userId: user.id
-        }
-      }
-    });
-
-    if (!existingMembership) {
-      await deps.prisma.listMember.create({
-        data: {
-          listId: invitation.listId,
-          userId: user.id,
-          role: invitation.role
-        }
-      });
-    }
-
-    await deps.prisma.listInvitation.update({
-      where: {
-        id: invitation.id
-      },
-      data: {
-        claimedAt: now,
-        claimedByUserId: user.id
-      }
-    });
-  }
 }
 
 export function createAuthRoutes(deps: AuthRoutesDeps = defaultDeps): FastifyPluginAsync {
@@ -202,9 +161,6 @@ export function createAuthRoutes(deps: AuthRoutesDeps = defaultDeps): FastifyPlu
           }
         });
       }
-
-      await claimPendingInvitations(deps, user, now);
-
       const sessionToken = generateSessionToken();
 
       await deps.prisma.authSession.create({

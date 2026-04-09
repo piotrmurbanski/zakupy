@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
+import { defaultMailer } from '../../lib/mailer.js';
 import { prisma } from '../../lib/prisma.js';
 import type { InvitationRecord, UserRecord } from '../../lib/types.js';
 import { authenticateRequest, normalizeEmail } from '../auth/session.js';
@@ -9,6 +10,8 @@ type ListResponse = {
   id: string;
   name: string;
   ownerUserId: string;
+  archivedAt: Date | null;
+  isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -41,6 +44,8 @@ type ListRecord = {
   id: string;
   name: string;
   ownerUserId: string;
+  archivedAt: Date | null;
+  archivedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -62,6 +67,7 @@ type ListRepository = {
           userId?: string;
         };
       };
+      archivedAt?: Date | null;
     };
     orderBy?: {
       updatedAt: 'asc' | 'desc';
@@ -95,6 +101,8 @@ type ListRepository = {
     };
     data: {
       name?: string;
+      archivedAt?: Date | null;
+      archivedByUserId?: string | null;
     };
   }): Promise<ListRecord>;
   delete(args: {
@@ -189,6 +197,12 @@ type ListRoutesDeps = {
     authSession: AuthSessionRepository;
     listInvitation: InvitationRepository;
   };
+  sendInvitationEmail: (params: {
+    email: string;
+    listName: string;
+    invitedByDisplayName: string;
+    invitedByEmail: string;
+  }) => Promise<void>;
 };
 
 const listBodySchema = z.object({
@@ -199,15 +213,23 @@ const listMemberBodySchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase())
 });
 
-const defaultDeps = {
-  prisma: prisma as unknown as ListRoutesDeps['prisma']
+const defaultDeps: ListRoutesDeps = {
+  prisma: prisma as unknown as ListRoutesDeps['prisma'],
+  sendInvitationEmail: defaultMailer.sendListInvitation,
 };
 
-function toListResponse(list: Pick<ListRecord, 'id' | 'name' | 'ownerUserId' | 'createdAt' | 'updatedAt'>): ListResponse {
+function toListResponse(
+  list: Pick<
+    ListRecord,
+    'id' | 'name' | 'ownerUserId' | 'archivedAt' | 'createdAt' | 'updatedAt'
+  >,
+): ListResponse {
   return {
     id: list.id,
     name: list.name,
     ownerUserId: list.ownerUserId,
+    archivedAt: list.archivedAt ?? null,
+    isArchived: list.archivedAt != null,
     createdAt: list.createdAt,
     updatedAt: list.updatedAt
   };
@@ -289,6 +311,10 @@ async function ensureOwnedVisibleList(
   return list;
 }
 
+function parseIncludeArchived(value: unknown) {
+  return value === true || value === 'true' || value === '1' || value === 1;
+}
+
 export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
     app.get('/lists', async (request, reply) => {
@@ -298,13 +324,19 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
         return;
       }
 
+      const includeArchived = parseIncludeArchived(
+        (request.query as { includeArchived?: string | boolean } | undefined)
+            ?.includeArchived,
+      );
+
       const lists = await deps.prisma.shoppingList.findMany({
         where: {
           members: {
             some: {
               userId: user.id
             }
-          }
+          },
+          archivedAt: includeArchived ? undefined : null,
         },
         orderBy: {
           updatedAt: 'desc'
@@ -431,6 +463,72 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
       return reply.code(204).send();
     });
 
+    app.post('/lists/:listId/archive', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const { listId } = request.params as { listId: string };
+      const list = await findVisibleList(deps, user.id, listId);
+
+      if (!list) {
+        return reply.notFound('List not found');
+      }
+
+      if (list.ownerUserId !== user.id) {
+        return reply.forbidden('Only the owner can archive this list');
+      }
+
+      const archivedList = await deps.prisma.shoppingList.update({
+        where: {
+          id: list.id,
+        },
+        data: {
+          archivedAt: new Date(),
+          archivedByUserId: user.id,
+        },
+      });
+
+      return {
+        list: toListResponse(archivedList),
+      };
+    });
+
+    app.post('/lists/:listId/restore', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const { listId } = request.params as { listId: string };
+      const list = await findVisibleList(deps, user.id, listId);
+
+      if (!list) {
+        return reply.notFound('List not found');
+      }
+
+      if (list.ownerUserId !== user.id) {
+        return reply.forbidden('Only the owner can restore this list');
+      }
+
+      const restoredList = await deps.prisma.shoppingList.update({
+        where: {
+          id: list.id,
+        },
+        data: {
+          archivedAt: null,
+          archivedByUserId: null,
+        },
+      });
+
+      return {
+        list: toListResponse(restoredList),
+      };
+    });
+
     app.post('/lists/:listId/members', async (request, reply) => {
       const user = await authenticateRequest(deps.prisma, request, reply);
 
@@ -479,6 +577,13 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
             role: 'editor',
             invitedByUserId: user.id
           }
+        });
+
+        await deps.sendInvitationEmail({
+          email: normalizedEmail,
+          listName: list.name,
+          invitedByDisplayName: user.displayName,
+          invitedByEmail: user.email,
         });
 
         return reply.code(202).send({

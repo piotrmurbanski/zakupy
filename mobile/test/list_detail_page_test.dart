@@ -118,6 +118,35 @@ void main() {
     expect(find.text('list_1'), findsNothing);
   });
 
+  testWidgets('owners can archive a list from the overflow menu', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      archiveListHandler: (listId) async {
+        return ShoppingListSummary(
+          id: listId,
+          name: 'Weekly groceries',
+          ownerUserId: 'user_1',
+          isArchived: true,
+          archivedAt: DateTime.utc(2026, 4, 9, 12),
+          createdAt: DateTime.utc(2026, 3, 31, 8),
+          updatedAt: DateTime.utc(2026, 4, 9, 12),
+        );
+      },
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Archive list'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.archiveListCalls, 1);
+  });
+
   testWidgets('shows pending invitation feedback for inactive email', (
     tester,
   ) async {
@@ -441,6 +470,7 @@ class _FakeApiClient extends ApiClient {
     this.createItemHandler,
     this.updateItemHandler,
     this.updateListHandler,
+    this.archiveListHandler,
     this.deleteItemHandler,
     this.fetchItemsHandler,
     this.shareListHandler,
@@ -458,6 +488,7 @@ class _FakeApiClient extends ApiClient {
   )? updateItemHandler;
   final Future<ShoppingListSummary> Function(String listId, String name)?
       updateListHandler;
+  final Future<ShoppingListSummary> Function(String listId)? archiveListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
   final Future<ShareListResult> Function(String listId, String email)?
       shareListHandler;
@@ -466,6 +497,7 @@ class _FakeApiClient extends ApiClient {
   int fetchItemsCalls = 0;
   int shareListCalls = 0;
   int updateListCalls = 0;
+  int archiveListCalls = 0;
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
@@ -534,6 +566,37 @@ class _FakeApiClient extends ApiClient {
       ownerUserId: 'user_1',
       createdAt: DateTime.utc(2026, 3, 31, 8),
       updatedAt: DateTime.utc(2026, 4, 1, 12),
+    );
+  }
+
+  @override
+  Future<ShoppingListSummary> archiveList(String listId) async {
+    archiveListCalls += 1;
+
+    if (archiveListHandler != null) {
+      return archiveListHandler!(listId);
+    }
+
+    return ShoppingListSummary(
+      id: listId,
+      name: 'Weekly groceries',
+      ownerUserId: 'user_1',
+      isArchived: true,
+      archivedAt: DateTime.utc(2026, 4, 9, 12),
+      createdAt: DateTime.utc(2026, 3, 31, 8),
+      updatedAt: DateTime.utc(2026, 4, 9, 12),
+    );
+  }
+
+  @override
+  Future<ShoppingListSummary> restoreList(String listId) async {
+    return ShoppingListSummary(
+      id: listId,
+      name: 'Weekly groceries',
+      ownerUserId: 'user_1',
+      isArchived: false,
+      createdAt: DateTime.utc(2026, 3, 31, 8),
+      updatedAt: DateTime.utc(2026, 4, 9, 12),
     );
   }
 

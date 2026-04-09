@@ -37,7 +37,7 @@ Response:
 Notes:
 - `displayName` is optional and is used only when the email becomes a new user on first verification
 - response should stay generic to avoid account enumeration
-- dev delivery may log the code or send it to a local mailbox sink; deployed VM should use SMTP or another simple private email path
+- dev delivery may log the code or send it to a local mailbox sink; deployed VM can send through configured SMTP
 
 ### `POST /auth/verify-code`
 
@@ -68,7 +68,7 @@ Response:
 
 Notes:
 - if the email does not exist yet, successful verification creates the user
-- if pending invitations exist for the verified email, they should be claimed before the response is returned
+- pending invitations are no longer auto-claimed at sign-in; the app accepts them explicitly through the invitations API
 - code verification should fail for expired, consumed, throttled, or over-attempted codes
 
 ### `POST /auth/logout`
@@ -132,12 +132,18 @@ Response:
       "id": "list_id",
       "name": "Weekly groceries",
       "ownerUserId": "user_id",
+      "isArchived": false,
+      "archivedAt": null,
       "createdAt": "2026-03-29T10:00:00.000Z",
       "updatedAt": "2026-03-29T10:00:00.000Z"
     }
   ]
 }
 ```
+
+Notes:
+- by default this returns active lists only
+- pass `?includeArchived=true` to include archived lists in the response
 
 ### `POST /lists`
 
@@ -157,6 +163,8 @@ Response:
     "id": "list_id",
     "name": "Weekly groceries",
     "ownerUserId": "user_id",
+    "isArchived": false,
+    "archivedAt": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
   }
@@ -179,6 +187,8 @@ Response:
     "id": "list_id",
     "name": "Weekly groceries",
     "ownerUserId": "user_id",
+    "isArchived": false,
+    "archivedAt": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
   }
@@ -203,6 +213,8 @@ Response:
     "id": "list_id",
     "name": "Updated groceries",
     "ownerUserId": "user_id",
+    "isArchived": false,
+    "archivedAt": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
   }
@@ -215,6 +227,54 @@ Headers:
 
 ```http
 Authorization: Bearer trusted-session-token
+```
+
+### `POST /lists/:listId/archive`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Response:
+
+```json
+{
+  "list": {
+    "id": "list_id",
+    "name": "Weekly groceries",
+    "ownerUserId": "user_id",
+    "isArchived": true,
+    "archivedAt": "2026-04-09T10:00:00.000Z",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-04-09T10:00:00.000Z"
+  }
+}
+```
+
+### `POST /lists/:listId/restore`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Response:
+
+```json
+{
+  "list": {
+    "id": "list_id",
+    "name": "Weekly groceries",
+    "ownerUserId": "user_id",
+    "isArchived": false,
+    "archivedAt": null,
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-04-09T10:05:00.000Z"
+  }
+}
 ```
 
 ## Members
@@ -251,6 +311,75 @@ Response:
       "email": "second-user@example.com",
       "displayName": "Second User"
     }
+  }
+}
+```
+
+Notes:
+- if the email already belongs to an active user, the backend creates the membership immediately
+- otherwise the backend creates a pending invitation and sends an email through the configured mailer
+
+## Invitations
+
+### `GET /invitations`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "invite_id",
+      "listId": "list_id",
+      "listName": "Weekly groceries",
+      "email": "second-user@example.com",
+      "role": "editor",
+      "status": "pending",
+      "invitedByUser": {
+        "id": "user_id",
+        "email": "owner@example.com",
+        "displayName": "Owner"
+      },
+      "createdAt": "2026-04-09T10:00:00.000Z",
+      "updatedAt": "2026-04-09T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /invitations/:invitationId/accept`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Response:
+
+```json
+{
+  "status": "accepted",
+  "invitation": {
+    "id": "invite_id",
+    "listId": "list_id",
+    "listName": "Weekly groceries",
+    "email": "second-user@example.com",
+    "role": "editor",
+    "status": "pending",
+    "invitedByUser": {
+      "id": "user_id",
+      "email": "owner@example.com",
+      "displayName": "Owner"
+    },
+    "createdAt": "2026-04-09T10:00:00.000Z",
+    "updatedAt": "2026-04-09T10:00:00.000Z"
   }
 }
 ```

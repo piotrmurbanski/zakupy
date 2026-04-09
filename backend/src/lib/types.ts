@@ -41,6 +41,16 @@ export type InvitationRecord = {
   updatedAt: Date;
 };
 
+export type ShoppingListRecord = {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  archivedAt: Date | null;
+  archivedByUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type AuthPrisma = {
   user: {
     findUnique(args: {
