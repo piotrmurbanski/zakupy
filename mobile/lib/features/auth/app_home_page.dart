@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
 import '../../core/theme/theme_mode_menu.dart';
+import 'auth_profile_store.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
 import 'auth_session_store.dart';
@@ -13,16 +14,20 @@ class AppHomePage extends StatefulWidget {
     required this.session,
     required this.authRepository,
     required this.onLogout,
+    required this.onResetLocalData,
     required this.themeMode,
     required this.onThemeModeChanged,
+    this.savedProfile,
     super.key,
   });
 
   final StoredAuthSession session;
   final AuthRepository authRepository;
   final Future<void> Function() onLogout;
+  final Future<void> Function() onResetLocalData;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
+  final SavedAuthProfile? savedProfile;
 
   @override
   State<AppHomePage> createState() => _AppHomePageState();
@@ -217,8 +222,6 @@ class _AppHomePageState extends State<AppHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your lists'),
@@ -231,7 +234,10 @@ class _AppHomePageState extends State<AppHomePage> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (context) => const SettingsPage(),
+                  builder: (context) => SettingsPage(
+                    savedProfile: widget.savedProfile,
+                    onResetLocalData: widget.onResetLocalData,
+                  ),
                 ),
               );
             },
@@ -268,23 +274,6 @@ class _AppHomePageState extends State<AppHomePage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.session.session.user.displayName,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(widget.session.session.user.email),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             if (_isLoading && _lists.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 48),

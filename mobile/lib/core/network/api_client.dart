@@ -228,21 +228,32 @@ class ApiClient {
     return _guard(() async {
       await _dio.delete<void>(
         '/lists/$listId/items/$itemId',
-        options: _authOptions(),
+        options: Options(
+          headers: _authHeaders(),
+          contentType: null,
+        ),
       );
     });
   }
 
-  Options _authOptions() {
+  Map<String, dynamic> _authHeaders() {
     if (accessToken.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    return <String, dynamic>{
+      'Authorization': 'Bearer $accessToken',
+    };
+  }
+
+  Options _authOptions() {
+    final headers = _authHeaders();
+
+    if (headers.isEmpty) {
       return Options();
     }
 
-    return Options(
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
+    return Options(headers: headers);
   }
 
   Future<T> _guard<T>(Future<T> Function() action) async {

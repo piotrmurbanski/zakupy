@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/features/auth/auth_models.dart';
+import 'package:zakupy_mobile/features/auth/auth_profile_store.dart';
 import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 
 void main() {
@@ -53,6 +54,38 @@ void main() {
     final stored = await store.read();
     expect(stored?.baseUrl, 'http://localhost:3000');
     expect(stored?.session.user.id, 'user_1');
+
+    await store.clear();
+
+    expect(await store.read(), isNull);
+  });
+
+  test('SavedAuthProfile roundtrips through JSON storage', () {
+    const profile = SavedAuthProfile(
+      baseUrl: 'http://localhost:3000',
+      email: 'test@example.com',
+    );
+
+    final restored = SavedAuthProfile.fromStorageValue(profile.toStorageValue());
+
+    expect(restored.baseUrl, 'http://localhost:3000');
+    expect(restored.email, 'test@example.com');
+  });
+
+  test('InMemoryAuthProfileStore stores and clears profiles', () async {
+    final store = InMemoryAuthProfileStore();
+    const profile = SavedAuthProfile(
+      baseUrl: 'http://localhost:3000',
+      email: 'test@example.com',
+    );
+
+    expect(await store.read(), isNull);
+
+    await store.write(profile);
+
+    final stored = await store.read();
+    expect(stored?.baseUrl, 'http://localhost:3000');
+    expect(stored?.email, 'test@example.com');
 
     await store.clear();
 

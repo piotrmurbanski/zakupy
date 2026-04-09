@@ -2,20 +2,26 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/auth/auth_models.dart';
+import 'package:zakupy_mobile/features/auth/auth_profile_store.dart';
 import 'package:zakupy_mobile/features/auth/auth_repository.dart';
 import 'package:zakupy_mobile/features/auth/auth_session_store.dart';
 import 'package:zakupy_mobile/features/auth/session_controller.dart';
 
 void main() {
   late _InMemorySessionStore sessionStore;
+  late _InMemoryProfileStore profileStore;
   late _FakeAuthRepository authRepository;
   late SessionController controller;
 
   setUp(() {
     sessionStore = _InMemorySessionStore();
+    profileStore = _InMemoryProfileStore();
     authRepository = _FakeAuthRepository();
     controller = SessionController(
-        sessionStore: sessionStore, authRepository: authRepository);
+      sessionStore: sessionStore,
+      profileStore: profileStore,
+      authRepository: authRepository,
+    );
   });
 
   test('bootstrap restores a saved session and refreshes the user', () async {
@@ -30,9 +36,12 @@ void main() {
     expect(controller.value.status, SessionStatus.authenticated);
     expect(controller.value.session?.session.user.displayName, 'Fresh Name');
     expect(sessionStore.savedSession?.session.user.displayName, 'Fresh Name');
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'test@example.com');
   });
 
-  test('bootstrap clears an invalid saved session', () async {
+  test('bootstrap keeps remembered auth data when a saved session is invalid',
+      () async {
     await sessionStore.write(StoredAuthSession(
         baseUrl: 'http://localhost:3000',
         session:
@@ -45,6 +54,25 @@ void main() {
     expect(controller.value.status, SessionStatus.unauthenticated);
     expect(controller.value.errorMessage, 'User not found');
     expect(sessionStore.savedSession, isNull);
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'test@example.com');
+  });
+
+  test('bootstrap keeps remembered auth data when the backend is unavailable',
+      () async {
+    await sessionStore.write(StoredAuthSession(
+        baseUrl: 'http://localhost:3000',
+        session:
+            AuthSession(sessionToken: 'saved-token', user: _buildUser())));
+    authRepository.currentUserError = const ApiException('Request timed out');
+
+    await controller.bootstrap();
+
+    expect(controller.value.status, SessionStatus.unauthenticated);
+    expect(controller.value.errorMessage, 'Request timed out');
+    expect(sessionStore.savedSession, isNotNull);
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'test@example.com');
   });
 
   test('requestCode leaves the controller unauthenticated on success',
@@ -57,6 +85,8 @@ void main() {
 
     expect(controller.value.status, SessionStatus.unauthenticated);
     expect(sessionStore.savedSession, isNull);
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'test@example.com');
     expect(authRepository.requestCodeCalls, 1);
   });
 
@@ -75,6 +105,8 @@ void main() {
     expect(controller.value.session?.baseUrl, 'http://localhost:3000');
     expect(controller.value.session?.session.sessionToken, 'new-token');
     expect(sessionStore.savedSession?.session.user.displayName, 'Tester');
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'test@example.com');
   });
 
   test('verifyCode surfaces backend errors without persisting a session',
@@ -92,6 +124,8 @@ void main() {
     expect(controller.value.status, SessionStatus.unauthenticated);
     expect(controller.value.errorMessage, 'Invalid code');
     expect(sessionStore.savedSession, isNull);
+    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+    expect(profileStore.savedProfile?.email, 'taken@example.com');
   });
 
   test('logout clears the local session and revokes remotely', () async {
@@ -109,7 +143,27 @@ void main() {
 
     expect(controller.value.status, SessionStatus.unauthenticated);
     expect(sessionStore.savedSession, isNull);
+    expect(profileStore.savedProfile, isNull);
     expect(authRepository.logoutCalls, 1);
+  });
+
+  test('resetLocalData clears both the saved session and profile', () async {
+    await sessionStore.write(StoredAuthSession(
+      baseUrl: 'http://localhost:3000',
+      session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
+    ));
+    await profileStore.write(
+      const SavedAuthProfile(
+        baseUrl: 'http://localhost:3000',
+        email: 'test@example.com',
+      ),
+    );
+
+    await controller.resetLocalData();
+
+    expect(controller.value.status, SessionStatus.unauthenticated);
+    expect(sessionStore.savedSession, isNull);
+    expect(profileStore.savedProfile, isNull);
   });
 }
 
@@ -129,6 +183,23 @@ class _InMemorySessionStore extends InMemoryAuthSessionStore {
   @override
   Future<void> clear() async {
     savedSession = null;
+  }
+}
+
+class _InMemoryProfileStore extends InMemoryAuthProfileStore {
+  SavedAuthProfile? savedProfile;
+
+  @override
+  Future<SavedAuthProfile?> read() async => savedProfile;
+
+  @override
+  Future<void> write(SavedAuthProfile profile) async {
+    savedProfile = profile;
+  }
+
+  @override
+  Future<void> clear() async {
+    savedProfile = null;
   }
 }
 

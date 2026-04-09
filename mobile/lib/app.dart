@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'features/auth/app_home_page.dart';
 import 'features/auth/auth_page.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/auth/auth_profile_store.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 
@@ -76,6 +77,7 @@ class _AppBootstrapper extends StatefulWidget {
 class _AppBootstrapperState extends State<_AppBootstrapper> {
   late final SessionController _sessionController;
   final AuthRepository _authRepository = const AuthRepository();
+  final AuthProfileStore _authProfileStore = SecureAuthProfileStore();
   bool _bootstrapComplete = false;
 
   @override
@@ -83,6 +85,7 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
     super.initState();
     _sessionController = SessionController(
       sessionStore: SecureAuthSessionStore(),
+      profileStore: _authProfileStore,
       authRepository: _authRepository,
     );
     _restoreSession();
@@ -120,13 +123,17 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
             session: state.session!,
             authRepository: _authRepository,
             onLogout: _sessionController.logout,
+            onResetLocalData: _sessionController.resetLocalData,
             themeMode: widget.themeMode,
             onThemeModeChanged: widget.onThemeModeChanged,
+            savedProfile: _sessionController.profile,
           );
         }
 
         return AuthPage(
-          initialBaseUrl: _defaultApiBaseUrl,
+          initialBaseUrl:
+              _sessionController.profile?.baseUrl ?? _defaultApiBaseUrl,
+          initialEmail: _sessionController.profile?.email ?? '',
           isSubmitting: state.status == SessionStatus.loading,
           errorMessage: state.errorMessage,
           themeMode: widget.themeMode,

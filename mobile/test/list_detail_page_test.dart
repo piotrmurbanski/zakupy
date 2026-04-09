@@ -106,6 +106,18 @@ void main() {
     );
   });
 
+  testWidgets('does not show the raw list id in the header', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weekly groceries'), findsOneWidget);
+    expect(find.text('list_1'), findsNothing);
+  });
+
   testWidgets('shows pending invitation feedback for inactive email', (
     tester,
   ) async {

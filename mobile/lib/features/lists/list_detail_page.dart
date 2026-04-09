@@ -547,19 +547,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
           leading: BackButton(
             onPressed: () => Navigator.of(context).pop(_didMutateList),
           ),
-          title: Text(title),
-          bottom: widget.listName == null
-              ? null
-              : PreferredSize(
-                  preferredSize: const Size.fromHeight(24),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      widget.listId,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ),
+          title: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           actions: [
             IconButton(
               onPressed: () => _reloadItems(),
@@ -816,7 +808,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       itemCount: _items.length,
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
