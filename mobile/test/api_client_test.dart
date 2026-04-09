@@ -37,6 +37,8 @@ void main() {
       'id': 'list_1',
       'name': 'Weekly groceries',
       'ownerUserId': 'user_1',
+      'isArchived': true,
+      'archivedAt': '2026-04-09T10:00:00.000Z',
       'createdAt': '2026-03-30T10:00:00.000Z',
       'updatedAt': '2026-03-31T10:00:00.000Z',
     });
@@ -45,6 +47,8 @@ void main() {
     expect(list.name, 'Weekly groceries');
     expect(list.isOwnedBy('user_1'), true);
     expect(list.isOwnedBy('user_2'), false);
+    expect(list.isArchived, true);
+    expect(list.archivedAt, isNotNull);
   });
 
   test('ListMember.fromJson parses shared user payloads', () {
@@ -332,6 +336,77 @@ void main() {
     expect(result.isInvitationPending, true);
     expect(result.invitation?.email, 'pending@example.com');
     expect(result.member, isNull);
+  });
+
+  test('ApiClient fetchInvitations parses invitation inbox payloads', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'items': [
+            {
+              'id': 'invite_1',
+              'listId': 'list_1',
+              'listName': 'Weekly groceries',
+              'email': 'pending@example.com',
+              'role': 'editor',
+              'status': 'pending',
+              'invitedByUser': {
+                'id': 'user_1',
+                'email': 'owner@example.com',
+                'displayName': 'Owner',
+              },
+              'createdAt': '2026-04-09T10:00:00.000Z',
+              'updatedAt': '2026-04-09T10:00:00.000Z',
+            },
+          ],
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+    final invitations = await client.fetchInvitations();
+
+    expect(adapter.lastRequest?.path, '/invitations');
+    expect(invitations, hasLength(1));
+    expect(invitations.first.listName, 'Weekly groceries');
+    expect(invitations.first.invitedByUser.email, 'owner@example.com');
+  });
+
+  test('ApiClient acceptInvitation posts to the accept endpoint', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'status': 'accepted',
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+    await client.acceptInvitation('invite_1');
+
+    expect(adapter.lastRequest?.path, '/invitations/invite_1/accept');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
   test('AuthSession and AuthUser parse API payloads', () {

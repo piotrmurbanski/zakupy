@@ -14,6 +14,7 @@ model User {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   ownedLists        ShoppingList[]
+  archivedLists     ShoppingList[]   @relation("archived_lists")
   memberships       ListMember[]
   createdItems      ListItem[]
   authSessions      AuthSession[]
@@ -58,9 +59,12 @@ model ShoppingList {
   id          String       @id @default(cuid())
   name        String
   ownerUserId String       @map("owner_user_id")
+  archivedByUserId String? @map("archived_by_user_id")
+  archivedAt  DateTime?    @map("archived_at")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   owner       User         @relation(fields: [ownerUserId], references: [id])
+  archivedByUser User?     @relation("archived_lists", fields: [archivedByUserId], references: [id], onDelete: SetNull)
   members     ListMember[]
   items       ListItem[]
   invitations ListInvitation[]

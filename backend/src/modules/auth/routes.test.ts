@@ -306,7 +306,7 @@ test('POST /auth/request-code creates a code and sends it', async () => {
   }
 });
 
-test('POST /auth/verify-code creates a user, claims invitations, and returns a session token', async () => {
+test('POST /auth/verify-code creates a user and returns a session token without auto-claiming invitations', async () => {
   const authCode: TestAuthCode = {
     id: 'code_1',
     email: 'test@example.com',
@@ -355,8 +355,8 @@ test('POST /auth/verify-code creates a user, claims invitations, and returns a s
     assert.equal(body.user.displayName, 'Piotr');
     assert.equal(sessions.length, 1);
     assert.equal([...users.values()].length, 1);
-    assert.equal(invitations[0]?.claimedByUserId, body.user.id);
-    assert.equal(memberships.has(`list_1:${body.user.id}`), true);
+    assert.equal(invitations[0]?.claimedByUserId, null);
+    assert.equal(memberships.has(`list_1:${body.user.id}`), false);
   } finally {
     await app.close();
   }
