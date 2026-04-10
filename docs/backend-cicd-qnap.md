@@ -77,6 +77,21 @@ Then update:
 - `BACKEND_IMAGE`
 - SMTP settings
 
+Gmail example:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-account@gmail.com
+SMTP_PASSWORD=your-16-char-app-password
+SMTP_FROM=your-account@gmail.com
+```
+
+Notes:
+- use a Google App Password, not the normal account password
+- App Passwords require Google 2-Step Verification
+
 ### 4. Log in to GHCR from QNAP
 
 ```bash

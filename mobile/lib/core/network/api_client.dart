@@ -262,31 +262,6 @@ class ApiClient {
     });
   }
 
-  Future<List<ListInvitationSummary>> fetchInvitations() {
-    return _guard(() async {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/invitations',
-        options: _authOptions(),
-      );
-      final items =
-          (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
-              .cast<Map<String, dynamic>>();
-
-      return items
-          .map(ListInvitationSummary.fromJson)
-          .toList(growable: false);
-    });
-  }
-
-  Future<void> acceptInvitation(String invitationId) {
-    return _guard(() async {
-      await _dio.post<Map<String, dynamic>>(
-        '/invitations/$invitationId/accept',
-        options: _authOptions(),
-      );
-    });
-  }
-
   Map<String, dynamic> _authHeaders() {
     if (accessToken.isEmpty) {
       return const <String, dynamic>{};
@@ -656,66 +631,6 @@ class PendingListInvitation {
       email: json['email'] as String,
       role: json['role'] as String,
       status: json['status'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-    );
-  }
-}
-
-class InvitationSender {
-  const InvitationSender({
-    required this.id,
-    required this.email,
-    required this.displayName,
-  });
-
-  final String id;
-  final String email;
-  final String displayName;
-
-  factory InvitationSender.fromJson(Map<String, dynamic> json) {
-    return InvitationSender(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String,
-    );
-  }
-}
-
-class ListInvitationSummary {
-  const ListInvitationSummary({
-    required this.id,
-    required this.listId,
-    required this.listName,
-    required this.email,
-    required this.role,
-    required this.status,
-    required this.invitedByUser,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  final String id;
-  final String listId;
-  final String listName;
-  final String email;
-  final String role;
-  final String status;
-  final InvitationSender invitedByUser;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  factory ListInvitationSummary.fromJson(Map<String, dynamic> json) {
-    return ListInvitationSummary(
-      id: json['id'] as String,
-      listId: json['listId'] as String,
-      listName: json['listName'] as String,
-      email: json['email'] as String,
-      role: json['role'] as String,
-      status: json['status'] as String,
-      invitedByUser: InvitationSender.fromJson(
-        ListMember._readMap(json['invitedByUser'], 'invitedByUser'),
-      ),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );

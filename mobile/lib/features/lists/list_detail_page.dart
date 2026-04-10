@@ -452,7 +452,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
       final message = result.member != null
           ? 'Shared with ${result.member!.user.email}.'
-          : 'Invitation sent to ${result.invitation!.email}.';
+          : 'List shared with ${result.invitation!.email}. It will appear after they sign in.';
 
       ScaffoldMessenger.of(
         context,

@@ -8,7 +8,6 @@ import { prisma } from './lib/prisma.js';
 import type { AuthPrisma } from './lib/types.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
-import { invitationRoutes } from './modules/invitations/routes.js';
 import { itemRoutes } from './modules/items/routes.js';
 import { listRoutes } from './modules/lists/routes.js';
 
@@ -34,7 +33,6 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(listRoutes);
-  await app.register(invitationRoutes);
   await app.register(itemRoutes);
 
   return app;

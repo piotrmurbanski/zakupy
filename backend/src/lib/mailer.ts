@@ -7,16 +7,8 @@ type SendAuthCodeParams = {
   code: string;
 };
 
-type SendListInvitationParams = {
-  email: string;
-  listName: string;
-  invitedByDisplayName: string;
-  invitedByEmail: string;
-};
-
 export type Mailer = {
   sendAuthCode(params: SendAuthCodeParams): Promise<void>;
-  sendListInvitation(params: SendListInvitationParams): Promise<void>;
 };
 
 function buildTransporter(): Transporter | null {
@@ -51,16 +43,6 @@ export function createMailer(): Mailer {
       async sendAuthCode({ email, code }) {
         console.info(`[auth] Sign-in code for ${email}: ${code}`);
       },
-      async sendListInvitation({
-        email,
-        listName,
-        invitedByDisplayName,
-        invitedByEmail,
-      }) {
-        console.info(
-          `[lists] Invitation for ${email} to join "${listName}" from ${invitedByDisplayName} <${invitedByEmail}>`,
-        );
-      },
     };
   }
 
@@ -74,26 +56,6 @@ export function createMailer(): Mailer {
         html: buildHtmlParagraphs([
           'Your Zakupy sign-in code is:',
           `<strong>${code}</strong>`,
-        ]),
-      });
-    },
-    async sendListInvitation({
-      email,
-      listName,
-      invitedByDisplayName,
-      invitedByEmail,
-    }) {
-      await transporter.sendMail({
-        from,
-        to: email,
-        subject: `${invitedByDisplayName} invited you to a Zakupy list`,
-        text: [
-          `${invitedByDisplayName} (${invitedByEmail}) invited you to share the list "${listName}".`,
-          'Open the Zakupy app, sign in with this email address, then accept the invitation from the Invitations screen.',
-        ].join('\n\n'),
-        html: buildHtmlParagraphs([
-          `${invitedByDisplayName} (${invitedByEmail}) invited you to share the list "${listName}".`,
-          'Open the Zakupy app, sign in with this email address, then accept the invitation from the Invitations screen.',
         ]),
       });
     },
