@@ -161,6 +161,45 @@ export function createAuthRoutes(deps: AuthRoutesDeps = defaultDeps): FastifyPlu
           }
         });
       }
+
+      const pendingInvitations = await deps.prisma.listInvitation.findMany({
+        where: {
+          email,
+          claimedAt: null
+        }
+      });
+
+      for (const invitation of pendingInvitations) {
+        const existingMembership = await deps.prisma.listMember.findUnique({
+          where: {
+            listId_userId: {
+              listId: invitation.listId,
+              userId: user.id
+            }
+          }
+        });
+
+        if (!existingMembership) {
+          await deps.prisma.listMember.create({
+            data: {
+              listId: invitation.listId,
+              userId: user.id,
+              role: invitation.role
+            }
+          });
+        }
+
+        await deps.prisma.listInvitation.update({
+          where: {
+            id: invitation.id
+          },
+          data: {
+            claimedAt: now,
+            claimedByUserId: user.id
+          }
+        });
+      }
+
       const sessionToken = generateSessionToken();
 
       await deps.prisma.authSession.create({

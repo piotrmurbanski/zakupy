@@ -91,12 +91,6 @@ async function buildApp(
 ) {
   const app = Fastify();
   const membersByKey = new Map<string, TestListMember>();
-  const sentInvitationEmails: Array<{
-    email: string;
-    listName: string;
-    invitedByDisplayName: string;
-    invitedByEmail: string;
-  }> = [];
 
   for (const list of listsById.values()) {
     if (!list) {
@@ -344,13 +338,10 @@ async function buildApp(
   await app.register(
     createListRoutes({
       prisma: prismaMock as never,
-      sendInvitationEmail: async (params) => {
-        sentInvitationEmails.push(params);
-      },
     }),
   );
   await app.ready();
-  return { app, invitations, sentInvitationEmails };
+  return { app, invitations };
 }
 
 function buildSessionToken(userId: string) {
@@ -546,7 +537,7 @@ test('POST /lists/:listId/members creates a pending invitation for an unknown em
   const owner = buildUser();
   const list = buildList({ id: 'list_1', ownerUserId: owner.id, memberIds: new Set([owner.id]) });
   const { rawToken, session } = buildSessionToken(owner.id);
-  const { app, invitations, sentInvitationEmails } = await buildApp(new Map([[owner.id, owner]]), new Map([[list.id, list]]), [session]);
+  const { app, invitations } = await buildApp(new Map([[owner.id, owner]]), new Map([[list.id, list]]), [session]);
 
   try {
     const response = await app.inject({
@@ -559,8 +550,6 @@ test('POST /lists/:listId/members creates a pending invitation for an unknown em
     assert.equal(response.statusCode, 202);
     assert.equal(response.json().invitation.email, 'missing@example.com');
     assert.equal(invitations.length, 1);
-    assert.equal(sentInvitationEmails.length, 1);
-    assert.equal(sentInvitationEmails[0]?.email, 'missing@example.com');
   } finally {
     await app.close();
   }

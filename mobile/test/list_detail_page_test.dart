@@ -182,7 +182,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Invitation sent to pending-user@example.com.'),
+      find.text(
+        'List shared with pending-user@example.com. It will appear after they sign in.',
+      ),
       findsOneWidget,
     );
   });

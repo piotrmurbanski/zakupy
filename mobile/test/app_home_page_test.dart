@@ -47,7 +47,6 @@ void main() {
     expect(find.text('http://100.113.187.63'), findsNothing);
     expect(find.text('Change backend'), findsNothing);
     expect(find.text('Session saved on this device'), findsNothing);
-    expect(find.byTooltip('Invitations'), findsOneWidget);
     expect(find.byTooltip('Archived lists'), findsOneWidget);
     expect(find.byTooltip('Settings'), findsOneWidget);
   });

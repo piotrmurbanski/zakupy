@@ -295,9 +295,8 @@ Magic links can be added later, but the initial contract should assume numeric o
 - list owners can share a list with any email address, even if that email has not signed in yet
 - if the email already belongs to an active user, the backend should create a `list_members` row immediately
 - otherwise, the backend should create a `list_invitations` row keyed by normalized email
-- the backend should expose pending invitations through an authenticated inbox endpoint keyed by the signed-in email
-- invitation acceptance should happen explicitly in the app and only then create `list_members`
-- API responses should distinguish active members from pending invitations so mobile can explain share state clearly
+- pending email shares should be auto-claimed when a user signs in with the matching email address
+- API responses should distinguish active members from pending email shares so mobile can explain share state clearly
 
 ## API design
 
@@ -326,10 +325,6 @@ Magic links can be added later, but the initial contract should assume numeric o
 #### members
 - `POST /lists/:listId/members`
 - `DELETE /lists/:listId/members/:userId`
-
-#### invitations
-- `GET /invitations`
-- `POST /invitations/:invitationId/accept`
 
 #### items
 - `GET /lists/:listId/items`

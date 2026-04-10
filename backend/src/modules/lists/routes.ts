@@ -1,7 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
-import { defaultMailer } from '../../lib/mailer.js';
 import { prisma } from '../../lib/prisma.js';
 import type { InvitationRecord, UserRecord } from '../../lib/types.js';
 import { authenticateRequest, normalizeEmail } from '../auth/session.js';
@@ -197,12 +196,6 @@ type ListRoutesDeps = {
     authSession: AuthSessionRepository;
     listInvitation: InvitationRepository;
   };
-  sendInvitationEmail: (params: {
-    email: string;
-    listName: string;
-    invitedByDisplayName: string;
-    invitedByEmail: string;
-  }) => Promise<void>;
 };
 
 const listBodySchema = z.object({
@@ -215,7 +208,6 @@ const listMemberBodySchema = z.object({
 
 const defaultDeps: ListRoutesDeps = {
   prisma: prisma as unknown as ListRoutesDeps['prisma'],
-  sendInvitationEmail: defaultMailer.sendListInvitation,
 };
 
 function toListResponse(
@@ -577,13 +569,6 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
             role: 'editor',
             invitedByUserId: user.id
           }
-        });
-
-        await deps.sendInvitationEmail({
-          email: normalizedEmail,
-          listName: list.name,
-          invitedByDisplayName: user.displayName,
-          invitedByEmail: user.email,
         });
 
         return reply.code(202).send({

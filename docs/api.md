@@ -68,7 +68,7 @@ Response:
 
 Notes:
 - if the email does not exist yet, successful verification creates the user
-- pending invitations are no longer auto-claimed at sign-in; the app accepts them explicitly through the invitations API
+- pending email shares are auto-claimed at sign-in for the matching email address
 - code verification should fail for expired, consumed, throttled, or over-attempted codes
 
 ### `POST /auth/logout`
@@ -317,78 +317,8 @@ Response:
 
 Notes:
 - if the email already belongs to an active user, the backend creates the membership immediately
-- otherwise the backend creates a pending invitation and sends an email through the configured mailer
-
-## Invitations
-
-### `GET /invitations`
-
-Headers:
-
-```http
-Authorization: Bearer trusted-session-token
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "id": "invite_id",
-      "listId": "list_id",
-      "listName": "Weekly groceries",
-      "email": "second-user@example.com",
-      "role": "editor",
-      "status": "pending",
-      "invitedByUser": {
-        "id": "user_id",
-        "email": "owner@example.com",
-        "displayName": "Owner"
-      },
-      "createdAt": "2026-04-09T10:00:00.000Z",
-      "updatedAt": "2026-04-09T10:00:00.000Z"
-    }
-  ]
-}
-```
-
-### `POST /invitations/:invitationId/accept`
-
-Headers:
-
-```http
-Authorization: Bearer trusted-session-token
-```
-
-Response:
-
-```json
-{
-  "status": "accepted",
-  "invitation": {
-    "id": "invite_id",
-    "listId": "list_id",
-    "listName": "Weekly groceries",
-    "email": "second-user@example.com",
-    "role": "editor",
-    "status": "pending",
-    "invitedByUser": {
-      "id": "user_id",
-      "email": "owner@example.com",
-      "displayName": "Owner"
-    },
-    "createdAt": "2026-04-09T10:00:00.000Z",
-    "updatedAt": "2026-04-09T10:00:00.000Z"
-  }
-}
-```
-
-Notes:
-- only the list owner can add members
-- if the invited email already belongs to an active user, the backend should create a real membership immediately
-- if the invited email is not active yet, the backend should create a pending invitation instead
-- duplicate active memberships or duplicate pending invitations should return `409 Conflict`
+- otherwise the backend creates a pending email share that will be auto-claimed the next time that email signs in
+- duplicate active memberships or duplicate pending email shares should return `409 Conflict`
 
 Alternative response for a pending invitation:
 

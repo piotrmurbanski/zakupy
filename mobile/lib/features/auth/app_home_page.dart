@@ -4,7 +4,6 @@ import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
 import '../../core/theme/theme_mode_menu.dart';
 import 'auth_profile_store.dart';
-import '../invitations/invitations_page.dart';
 import '../lists/archived_lists_page.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
@@ -239,19 +238,6 @@ class _AppHomePageState extends State<AppHomePage> {
     }
   }
 
-  Future<void> _openInvitations() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (context) => InvitationsPage(
-          apiClient: _apiClient,
-          onUnauthorized: widget.onLogout,
-        ),
-      ),
-    );
-
-    await _loadLists(silent: true);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -261,11 +247,6 @@ class _AppHomePageState extends State<AppHomePage> {
           IconButton(
             onPressed: _isUpdating ? null : () => _loadLists(),
             icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            onPressed: _openInvitations,
-            icon: const Icon(Icons.mail_outline),
-            tooltip: 'Invitations',
           ),
           IconButton(
             onPressed: _openArchivedLists,
