@@ -272,6 +272,9 @@ void main() {
 
     expect(adapter.lastRequest?.path, '/auth/logout');
     expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data, isNull);
+    expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
@@ -296,6 +299,7 @@ void main() {
     expect(adapter.lastRequest?.method, 'DELETE');
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
@@ -334,6 +338,7 @@ void main() {
     expect(adapter.lastRequest?.method, 'POST');
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
     expect(result.isArchived, true);
   });
@@ -373,6 +378,7 @@ void main() {
     expect(adapter.lastRequest?.method, 'POST');
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
     expect(result.isArchived, false);
   });
