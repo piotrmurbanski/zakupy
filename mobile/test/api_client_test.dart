@@ -299,6 +299,84 @@ void main() {
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
+  test('ApiClient archiveList sends no json content type or body', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'list': {
+            'id': 'list_1',
+            'name': 'Weekly groceries',
+            'ownerUserId': 'user_1',
+            'isArchived': true,
+            'archivedAt': '2026-04-11T12:00:00.000Z',
+            'createdAt': '2026-04-10T12:00:00.000Z',
+            'updatedAt': '2026-04-11T12:00:00.000Z',
+          },
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+
+    final result = await client.archiveList('list_1');
+
+    expect(adapter.lastRequest?.path, '/lists/list_1/archive');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data, isNull);
+    expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(result.isArchived, true);
+  });
+
+  test('ApiClient restoreList sends no json content type or body', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'list': {
+            'id': 'list_1',
+            'name': 'Weekly groceries',
+            'ownerUserId': 'user_1',
+            'isArchived': false,
+            'archivedAt': null,
+            'createdAt': '2026-04-10T12:00:00.000Z',
+            'updatedAt': '2026-04-11T12:00:00.000Z',
+          },
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+
+    final result = await client.restoreList('list_1');
+
+    expect(adapter.lastRequest?.path, '/lists/list_1/restore');
+    expect(adapter.lastRequest?.method, 'POST');
+    expect(adapter.lastRequest?.data, isNull);
+    expect(adapter.lastRequest?.contentType, isNull);
+    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(result.isArchived, false);
+  });
+
   test('ApiClient shareList parses a pending invitation response', () async {
     final adapter = _RecordingAdapter(
       ResponseBody.fromString(
