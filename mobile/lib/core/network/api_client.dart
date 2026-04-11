@@ -92,7 +92,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/auth/logout',
-        options: _authOptions(),
+        options: _authOptionsWithoutBody(),
       );
 
       final status = _readString(response.data, 'status');
@@ -153,7 +153,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists/$listId/archive',
-        options: _authOptions(),
+        options: _authOptionsWithoutBody(),
       );
 
       return ShoppingListSummary.fromJson(_readObject(response.data, 'list'));
@@ -164,7 +164,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists/$listId/restore',
-        options: _authOptions(),
+        options: _authOptionsWithoutBody(),
       );
 
       return ShoppingListSummary.fromJson(_readObject(response.data, 'list'));
@@ -254,10 +254,7 @@ class ApiClient {
     return _guard(() async {
       await _dio.delete<void>(
         '/lists/$listId/items/$itemId',
-        options: Options(
-          headers: _authHeaders(),
-          contentType: null,
-        ),
+        options: _authOptionsWithoutBody(),
       );
     });
   }
@@ -280,6 +277,15 @@ class ApiClient {
     }
 
     return Options(headers: headers);
+  }
+
+  Options _authOptionsWithoutBody() {
+    final headers = _authHeaders();
+
+    return Options(
+      headers: headers.isEmpty ? null : headers,
+      contentType: null,
+    );
   }
 
   Future<T> _guard<T>(Future<T> Function() action) async {
