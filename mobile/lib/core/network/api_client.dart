@@ -108,8 +108,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/lists',
-        queryParameters:
-            includeArchived ? {'includeArchived': 'true'} : null,
+        queryParameters: includeArchived ? {'includeArchived': 'true'} : null,
         options: _authOptions(),
       );
       final items =
@@ -218,6 +217,20 @@ class ApiClient {
               .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListItem.fromJson).toList(growable: false);
+    });
+  }
+
+  Future<List<ItemSuggestion>> fetchItemSuggestions() {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/items/suggestions',
+        options: _authOptions(),
+      );
+      final items =
+          (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>();
+
+      return items.map(ItemSuggestion.fromJson).toList(growable: false);
     });
   }
 
@@ -427,26 +440,26 @@ class ShoppingListSummary {
 class ItemDraft {
   const ItemDraft({
     required this.name,
-    this.quantity,
-    this.unit,
+    this.comment,
+    this.quantity = 1,
     this.isChecked = false,
   });
 
   final String name;
-  final String? quantity;
-  final String? unit;
+  final String? comment;
+  final int quantity;
   final bool isChecked;
 
   ItemDraft copyWith({
     String? name,
-    String? quantity,
-    String? unit,
+    String? comment,
+    int? quantity,
     bool? isChecked,
   }) {
     return ItemDraft(
       name: name ?? this.name,
+      comment: comment ?? this.comment,
       quantity: quantity ?? this.quantity,
-      unit: unit ?? this.unit,
       isChecked: isChecked ?? this.isChecked,
     );
   }
@@ -454,8 +467,8 @@ class ItemDraft {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
+      'comment': comment,
       'quantity': quantity,
-      'unit': unit,
       'isChecked': isChecked,
     };
   }
@@ -466,8 +479,8 @@ class ShoppingListItem {
     required this.id,
     required this.listId,
     required this.name,
+    required this.comment,
     required this.quantity,
-    required this.unit,
     required this.isChecked,
     required this.sortOrder,
     required this.createdByUserId,
@@ -478,8 +491,8 @@ class ShoppingListItem {
   final String id;
   final String listId;
   final String name;
-  final String? quantity;
-  final String? unit;
+  final String? comment;
+  final int quantity;
   final bool isChecked;
   final int sortOrder;
   final String createdByUserId;
@@ -491,8 +504,8 @@ class ShoppingListItem {
       id: json['id'] as String,
       listId: json['listId'] as String,
       name: json['name'] as String,
-      quantity: json['quantity'] as String?,
-      unit: json['unit'] as String?,
+      comment: json['comment'] as String?,
+      quantity: json['quantity'] as int? ?? 1,
       isChecked: json['isChecked'] as bool? ?? false,
       sortOrder: json['sortOrder'] as int? ?? 0,
       createdByUserId: json['createdByUserId'] as String,
@@ -504,8 +517,8 @@ class ShoppingListItem {
   ItemDraft toDraft() {
     return ItemDraft(
       name: name,
+      comment: comment,
       quantity: quantity,
-      unit: unit,
       isChecked: isChecked,
     );
   }
@@ -514,8 +527,8 @@ class ShoppingListItem {
     String? id,
     String? listId,
     String? name,
-    String? quantity,
-    String? unit,
+    String? comment,
+    int? quantity,
     bool? isChecked,
     int? sortOrder,
     String? createdByUserId,
@@ -526,13 +539,39 @@ class ShoppingListItem {
       id: id ?? this.id,
       listId: listId ?? this.listId,
       name: name ?? this.name,
+      comment: comment ?? this.comment,
       quantity: quantity ?? this.quantity,
-      unit: unit ?? this.unit,
       isChecked: isChecked ?? this.isChecked,
       sortOrder: sortOrder ?? this.sortOrder,
       createdByUserId: createdByUserId ?? this.createdByUserId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+class ItemSuggestion {
+  const ItemSuggestion({
+    required this.id,
+    required this.name,
+    required this.comment,
+    required this.usageCount,
+    required this.lastUsedAt,
+  });
+
+  final String id;
+  final String name;
+  final String? comment;
+  final int usageCount;
+  final DateTime lastUsedAt;
+
+  factory ItemSuggestion.fromJson(Map<String, dynamic> json) {
+    return ItemSuggestion(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      comment: json['comment'] as String?,
+      usageCount: json['usageCount'] as int? ?? 0,
+      lastUsedAt: DateTime.parse(json['lastUsedAt'] as String),
     );
   }
 }
@@ -639,8 +678,7 @@ class ShareListResult {
     this.invitation,
   });
 
-  const ShareListResult.member(ListMember member)
-      : this._(member: member);
+  const ShareListResult.member(ListMember member) : this._(member: member);
 
   const ShareListResult.invitation(PendingListInvitation invitation)
       : this._(invitation: invitation);

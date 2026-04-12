@@ -75,8 +75,8 @@ void main() {
       'id': 'item_1',
       'listId': 'list_1',
       'name': 'Milk',
-      'quantity': '2',
-      'unit': 'l',
+      'quantity': 2,
+      'comment': '2%',
       'isChecked': true,
       'sortOrder': 3,
       'createdByUserId': 'user_1',
@@ -87,8 +87,8 @@ void main() {
     expect(item.id, 'item_1');
     expect(item.listId, 'list_1');
     expect(item.name, 'Milk');
-    expect(item.quantity, '2');
-    expect(item.unit, 'l');
+    expect(item.quantity, 2);
+    expect(item.comment, '2%');
     expect(item.isChecked, true);
     expect(item.sortOrder, 3);
     expect(item.createdByUserId, 'user_1');
@@ -100,8 +100,8 @@ void main() {
       id: 'item_1',
       listId: 'list_1',
       name: 'Bread',
-      quantity: null,
-      unit: 'pcs',
+      comment: 'Na tosty',
+      quantity: 1,
       isChecked: false,
       sortOrder: 1,
       createdByUserId: 'user_1',
@@ -111,8 +111,8 @@ void main() {
 
     expect(item.toDraft().toJson(), {
       'name': 'Bread',
-      'quantity': null,
-      'unit': 'pcs',
+      'comment': 'Na tosty',
+      'quantity': 1,
       'isChecked': false,
     });
   });
@@ -120,16 +120,16 @@ void main() {
   test('ItemDraft.copyWith keeps existing values by default', () {
     const draft = ItemDraft(
       name: 'Milk',
-      quantity: '1',
-      unit: 'l',
+      quantity: 1,
+      comment: 'Bez laktozy',
       isChecked: false,
     );
 
-    final updated = draft.copyWith(isChecked: true);
+    final updated = draft.copyWith(isChecked: true, quantity: 2);
 
     expect(updated.name, 'Milk');
-    expect(updated.quantity, '1');
-    expect(updated.unit, 'l');
+    expect(updated.quantity, 2);
+    expect(updated.comment, 'Bez laktozy');
     expect(updated.isChecked, true);
   });
 
@@ -275,7 +275,8 @@ void main() {
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
     expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
-    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(
+        adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
   test('ApiClient deleteItem sends no json content type or body', () async {
@@ -300,7 +301,8 @@ void main() {
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
     expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
-    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(
+        adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
   });
 
   test('ApiClient archiveList sends no json content type or body', () async {
@@ -339,7 +341,8 @@ void main() {
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
     expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
-    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(
+        adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
     expect(result.isArchived, true);
   });
 
@@ -379,7 +382,8 @@ void main() {
     expect(adapter.lastRequest?.data, isNull);
     expect(adapter.lastRequest?.contentType, isNull);
     expect(adapter.lastRequest?.headers[Headers.contentTypeHeader], isNull);
-    expect(adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(
+        adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
     expect(result.isArchived, false);
   });
 
