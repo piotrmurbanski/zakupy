@@ -43,20 +43,20 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bread (1)'), findsOneWidget);
+    expect(find.text('Bread'), findsOneWidget);
     expect(apiClient.createItemCalls, 1);
 
     await tester.tap(find.byIcon(Icons.refresh));
     await tester.pump();
 
-    expect(find.text('Bread (1)'), findsOneWidget);
+    expect(find.text('Bread'), findsOneWidget);
 
     createCompleter.complete(
       _item(id: 'item_bread', name: 'Bread', sortOrder: 2),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Bread (1)'), findsOneWidget);
+    expect(find.text('Bread'), findsOneWidget);
     expect(find.byType(Checkbox), findsNWidgets(2));
   });
 
@@ -119,22 +119,11 @@ void main() {
     expect(find.text('list_1'), findsNothing);
   });
 
-  testWidgets('owners can archive a list from the overflow menu', (
+  testWidgets('overflow menu no longer shows archive action', (
     tester,
   ) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
-      archiveListHandler: (listId) async {
-        return ShoppingListSummary(
-          id: listId,
-          name: 'Weekly groceries',
-          ownerUserId: 'user_1',
-          isArchived: true,
-          archivedAt: DateTime.utc(2026, 4, 9, 12),
-          createdAt: DateTime.utc(2026, 3, 31, 8),
-          updatedAt: DateTime.utc(2026, 4, 9, 12),
-        );
-      },
     );
 
     await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
@@ -142,10 +131,8 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Archiwizuj listę'));
-    await tester.pumpAndSettle();
 
-    expect(apiClient.archiveListCalls, 1);
+    expect(find.text('Archiwizuj listę'), findsNothing);
   });
 
   testWidgets('shows pending invitation feedback for inactive email', (
@@ -193,10 +180,11 @@ void main() {
   testWidgets('renames a list and refreshes the title', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
-      updateListHandler: (_, name) async {
+      updateListHandler: (_, {required name, plannedFor}) async {
         return ShoppingListSummary(
           id: 'list_1',
           name: name,
+          plannedFor: plannedFor,
           ownerUserId: 'user_1',
           createdAt: DateTime.utc(2026, 3, 31, 8),
           updatedAt: DateTime.utc(2026, 4, 1, 12),
@@ -209,7 +197,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Zmień nazwę listy'));
+    await tester.tap(find.text('Edytuj listę'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Nazwa listy'),
@@ -220,7 +208,7 @@ void main() {
 
     expect(apiClient.updateListCalls, 1);
     expect(find.text('Weekend groceries'), findsWidgets);
-    expect(find.text('Zmieniono nazwę na Weekend groceries.'), findsOneWidget);
+    expect(find.text('Zapisano zmiany listy.'), findsOneWidget);
   });
 
   testWidgets('rejects an empty rename before calling the backend', (
@@ -235,7 +223,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Zmień nazwę listy'));
+    await tester.tap(find.text('Edytuj listę'));
     await tester.pumpAndSettle();
     await tester.enterText(
         find.widgetWithText(TextFormField, 'Nazwa listy'), '');
@@ -258,7 +246,7 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.tap(find.text('Milk (2)'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Nazwa'),
@@ -341,10 +329,8 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.drag(find.text('Milk (2)'), const Offset(-500, 0));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Usuń'));
-    await tester.pump();
 
     expect(find.textContaining('Milk (2)'), findsNothing);
 
@@ -417,16 +403,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.getTopLeft(find.text('Milk (1)')).dy,
-      lessThan(tester.getTopLeft(find.text('Bread (1)')).dy),
+      tester.getTopLeft(find.text('Milk')).dy,
+      lessThan(tester.getTopLeft(find.text('Bread')).dy),
     );
 
     await tester.tap(find.byType(Checkbox).first);
     await tester.pump();
 
     expect(
-      tester.getTopLeft(find.text('Bread (1)')).dy,
-      lessThan(tester.getTopLeft(find.text('Milk (1)')).dy),
+      tester.getTopLeft(find.text('Bread')).dy,
+      lessThan(tester.getTopLeft(find.text('Milk')).dy),
     );
 
     updateCompleter.complete(
@@ -462,10 +448,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(apiClient.createItemCalls, 1);
-    expect(find.text('Milk (1)'), findsOneWidget);
+    expect(find.text('Milk'), findsOneWidget);
   });
 
-  testWidgets('increments item quantity with plus button', (tester) async {
+  testWidgets('increments item quantity from the edit dialog', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
     );
@@ -473,11 +459,31 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Milk (2)'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Zwiększ ilość'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
     expect(find.text('Milk (3)'), findsOneWidget);
     expect(apiClient.lastUpdatedDraft?.quantity, 3);
+  });
+
+  testWidgets('does not show inline edit delete or quantity buttons', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(Icons.delete_outline), findsNothing);
+    expect(find.byIcon(Icons.add_circle_outline), findsNothing);
+    expect(find.byIcon(Icons.remove_circle_outline), findsNothing);
   });
 }
 
@@ -537,7 +543,11 @@ class _FakeApiClient extends ApiClient {
     String itemId,
     ItemDraft draft,
   )? updateItemHandler;
-  final Future<ShoppingListSummary> Function(String listId, String name)?
+  final Future<ShoppingListSummary> Function(
+    String listId, {
+    required String name,
+    DateTime? plannedFor,
+  })?
       updateListHandler;
   final Future<ShoppingListSummary> Function(String listId)? archiveListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
@@ -612,16 +622,25 @@ class _FakeApiClient extends ApiClient {
   }
 
   @override
-  Future<ShoppingListSummary> updateList(String listId, String name) async {
+  Future<ShoppingListSummary> updateList(
+    String listId, {
+    required String name,
+    DateTime? plannedFor,
+  }) async {
     updateListCalls += 1;
 
     if (updateListHandler != null) {
-      return updateListHandler!(listId, name);
+      return updateListHandler!(
+        listId,
+        name: name,
+        plannedFor: plannedFor,
+      );
     }
 
     return ShoppingListSummary(
       id: listId,
       name: name,
+      plannedFor: plannedFor,
       ownerUserId: 'user_1',
       createdAt: DateTime.utc(2026, 3, 31, 8),
       updatedAt: DateTime.utc(2026, 4, 1, 12),

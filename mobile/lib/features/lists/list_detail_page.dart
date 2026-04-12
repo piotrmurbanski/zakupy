@@ -11,6 +11,7 @@ class ListDetailPage extends StatefulWidget {
     required this.apiClient,
     required this.listId,
     this.listName,
+    this.plannedFor,
     this.isArchived = false,
     this.canManageList = false,
     this.onUnauthorized,
@@ -21,6 +22,7 @@ class ListDetailPage extends StatefulWidget {
   final ApiClient apiClient;
   final String listId;
   final String? listName;
+  final DateTime? plannedFor;
   final bool isArchived;
   final bool canManageList;
   final Future<void> Function()? onUnauthorized;
@@ -38,7 +40,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       <String, _PendingItemMutation>{};
 
   late String _listName;
-  late bool _isArchived;
+  DateTime? _plannedFor;
   late final ShareEmailHistoryStore _shareEmailHistoryStore;
   bool _isLoading = true;
   bool _isSharing = false;
@@ -52,8 +54,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
     super.initState();
     _shareEmailHistoryStore =
         widget.shareEmailHistoryStore ?? SecureShareEmailHistoryStore();
-    _listName = widget.listName ?? 'List ${widget.listId}';
-    _isArchived = widget.isArchived;
+    _listName = widget.listName ?? 'Lista';
+    _plannedFor = widget.plannedFor;
     _reloadItems();
     _reloadSuggestions();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -499,29 +501,34 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
   }
 
-  Future<void> _deleteItem(ShoppingListItem item) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Usuń produkt'),
-          content: Text('Usunąć "${item.name}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Anuluj'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Usuń'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _deleteItem(
+    ShoppingListItem item, {
+    bool confirm = true,
+  }) async {
+    if (confirm) {
+      final shouldDelete = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Usuń produkt'),
+            content: Text('Usunąć "${item.name}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Anuluj'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Usuń'),
+              ),
+            ],
+          );
+        },
+      );
 
-    if (shouldDelete != true) {
-      return;
+      if (shouldDelete != true) {
+        return;
+      }
     }
 
     final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
@@ -635,30 +642,34 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
-  Future<void> _renameList() async {
+  Future<void> _editList() async {
     if (!widget.canManageList) {
       return;
     }
 
-    final nextName = await showDialog<String>(
+    final result = await showDialog<_ListDetailsDraft>(
       context: context,
       builder: (context) {
-        return _ListNameDialog(
-          title: 'Zmień nazwę listy',
-          initialValue: _listName,
+        return _ListDetailsDialog(
+          title: 'Edytuj listę',
+          initialName: _listName,
+          initialPlannedFor: _plannedFor,
           actionLabel: 'Zapisz',
         );
       },
     );
 
-    if (nextName == null || nextName == _listName) {
+    if (result == null ||
+        (result.name == _listName &&
+            _sameDay(result.plannedFor, _plannedFor))) {
       return;
     }
 
     try {
       final updatedList = await widget.apiClient.updateList(
         widget.listId,
-        nextName,
+        name: result.name,
+        plannedFor: result.plannedFor,
       );
 
       if (!mounted) {
@@ -668,10 +679,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
       setState(() {
         _didMutateList = true;
         _listName = updatedList.name;
+        _plannedFor = updatedList.plannedFor;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Zmieniono nazwę na ${updatedList.name}.')),
+        const SnackBar(content: Text('Zapisano zmiany listy.')),
       );
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
@@ -686,67 +698,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content:
-                Text('Nie udało się zmienić nazwy listy: ${error.message}')),
-      );
-    }
-  }
-
-  Future<void> _toggleArchiveStatus() async {
-    if (!widget.canManageList) {
-      return;
-    }
-
-    try {
-      final updatedList = _isArchived
-          ? await widget.apiClient.restoreList(widget.listId)
-          : await widget.apiClient.archiveList(widget.listId);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _didMutateList = true;
-        _isArchived = updatedList.isArchived;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            updatedList.isArchived
-                ? 'Lista przeniesiona do archiwum.'
-                : 'Lista przywrócona.',
-          ),
-        ),
-      );
-
-      Navigator.of(context).pop(true);
-    } on ApiException catch (error) {
-      if (error.isUnauthorized && widget.onUnauthorized != null) {
-        await widget.onUnauthorized!();
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isArchived
-                ? 'Nie udało się przywrócić listy: ${error.message}'
-                : 'Nie udało się zarchiwizować listy: ${error.message}',
-          ),
-        ),
+                Text('Nie udało się zapisać listy: ${error.message}')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = _listName;
-
     return PopScope<bool>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -761,24 +719,34 @@ class _ListDetailPageState extends State<ListDetailPage> {
           leading: BackButton(
             onPressed: () => Navigator.of(context).pop(_didMutateList),
           ),
-          title: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _listName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (_plannedFor != null)
+                Text(
+                  'Data: ${_formatDate(_plannedFor!)}',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+            ],
           ),
           actions: [
             IconButton(
               onPressed: () => _reloadItems(),
               icon: const Icon(Icons.refresh),
+              tooltip: 'Odśwież',
             ),
             PopupMenuButton<_ListAction>(
               onSelected: (action) {
                 if (action == _ListAction.share) {
                   _shareList();
                 } else if (action == _ListAction.rename) {
-                  _renameList();
-                } else if (action == _ListAction.archive) {
-                  _toggleArchiveStatus();
+                  _editList();
                 }
               },
               itemBuilder: (context) => [
@@ -790,14 +758,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 if (widget.canManageList)
                   const PopupMenuItem<_ListAction>(
                     value: _ListAction.rename,
-                    child: Text('Zmień nazwę listy'),
-                  ),
-                if (widget.canManageList)
-                  PopupMenuItem<_ListAction>(
-                    value: _ListAction.archive,
-                    child: Text(
-                      _isArchived ? 'Przywróć listę' : 'Archiwizuj listę',
-                    ),
+                    child: Text('Edytuj listę'),
                   ),
               ],
             ),
@@ -838,57 +799,54 @@ class _ListDetailPageState extends State<ListDetailPage> {
     await _editItem(item);
   }
 
-  Future<void> _onDeleteRequested(ShoppingListItem item) async {
-    if (_isItemPending(item.id)) {
-      return;
+  String _itemLabel(ShoppingListItem item) {
+    if (item.quantity <= 1) {
+      return item.name;
     }
 
-    await _deleteItem(item);
+    return '${item.name} (${item.quantity})';
   }
 
   Widget _buildItemTile(ShoppingListItem item) {
     final isPending = _isItemPending(item.id);
 
-    return Card(
-      child: ListTile(
-        leading: Checkbox(
-          value: item.isChecked,
-          onChanged:
-              isPending ? null : (checked) => _onToggleRequested(item, checked),
+    return Dismissible(
+      key: ValueKey<String>(item.id),
+      direction:
+          isPending ? DismissDirection.none : DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
         ),
-        title: Text(
-          '${item.name} (${item.quantity})',
-          style: TextStyle(
-            decoration: item.isChecked
-                ? TextDecoration.lineThrough
-                : TextDecoration.none,
+        child: Icon(
+          Icons.delete_outline,
+          color: Theme.of(context).colorScheme.onErrorContainer,
+        ),
+      ),
+      confirmDismiss: (_) async {
+        await _deleteItem(item, confirm: false);
+        return false;
+      },
+      child: Card(
+        child: ListTile(
+          onTap: isPending ? null : () => _onEditRequested(item),
+          leading: Checkbox(
+            value: item.isChecked,
+            onChanged: isPending
+                ? null
+                : (checked) => _onToggleRequested(item, checked),
           ),
-        ),
-        subtitle: _buildSubtitle(item),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              onPressed: isPending || item.quantity <= 1
-                  ? null
-                  : () => _changeQuantity(item, -1),
-              icon: const Icon(Icons.remove_circle_outline),
-              tooltip: 'Zmniejsz ilość',
+          title: Text(
+            _itemLabel(item),
+            style: TextStyle(
+              decoration: item.isChecked
+                  ? TextDecoration.lineThrough
+                  : TextDecoration.none,
             ),
-            IconButton(
-              onPressed: isPending ? null : () => _changeQuantity(item, 1),
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Zwiększ ilość',
-            ),
-            IconButton(
-              onPressed: isPending ? null : () => _onEditRequested(item),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-            IconButton(
-              onPressed: isPending ? null : () => _onDeleteRequested(item),
-              icon: const Icon(Icons.delete_outline),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1062,14 +1020,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
     );
   }
 
-  Widget? _buildSubtitle(ShoppingListItem item) {
-    if (item.comment == null || item.comment!.isEmpty) {
-      return null;
-    }
-
-    return Text(item.comment!);
-  }
-
   Widget _buildSuggestionsSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1112,7 +1062,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 }
 
-enum _ListAction { share, rename, archive }
+enum _ListAction { share, rename }
 
 enum _PendingItemMutationType { create, update, delete }
 
@@ -1171,6 +1121,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   late final TextEditingController _nameController;
   late bool _isChecked;
   late final TextEditingController _commentController;
+  late int _quantity;
 
   @override
   void initState() {
@@ -1182,6 +1133,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
       text: widget.initialItem?.comment ?? '',
     );
     _isChecked = widget.initialItem?.isChecked ?? false;
+    _quantity = widget.initialItem?.quantity ?? 1;
   }
 
   @override
@@ -1200,7 +1152,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
       ItemDraft(
         name: _nameController.text.trim(),
         comment: _normalizedOptionalText(_commentController.text),
-        quantity: widget.initialItem?.quantity ?? 1,
+        quantity: _quantity,
         isChecked: _isChecked,
       ),
     );
@@ -1242,6 +1194,37 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('Ilość'),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: _quantity > 1
+                        ? () {
+                            setState(() {
+                              _quantity -= 1;
+                            });
+                          }
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    tooltip: 'Zmniejsz ilość',
+                  ),
+                  Text(
+                    '$_quantity',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _quantity += 1;
+                      });
+                    },
+                    icon: const Icon(Icons.add_circle_outline),
+                    tooltip: 'Zwiększ ilość',
+                  ),
+                ],
+              ),
               TextFormField(
                 controller: _commentController,
                 decoration: const InputDecoration(labelText: 'Komentarz'),
@@ -1263,29 +1246,43 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   }
 }
 
-class _ListNameDialog extends StatefulWidget {
-  const _ListNameDialog({
+class _ListDetailsDraft {
+  const _ListDetailsDraft({
+    required this.name,
+    required this.plannedFor,
+  });
+
+  final String name;
+  final DateTime? plannedFor;
+}
+
+class _ListDetailsDialog extends StatefulWidget {
+  const _ListDetailsDialog({
     required this.title,
-    required this.initialValue,
+    required this.initialName,
     required this.actionLabel,
+    this.initialPlannedFor,
   });
 
   final String title;
-  final String initialValue;
+  final String initialName;
   final String actionLabel;
+  final DateTime? initialPlannedFor;
 
   @override
-  State<_ListNameDialog> createState() => _ListNameDialogState();
+  State<_ListDetailsDialog> createState() => _ListDetailsDialogState();
 }
 
-class _ListNameDialogState extends State<_ListNameDialog> {
+class _ListDetailsDialogState extends State<_ListDetailsDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _controller;
+  DateTime? _plannedFor;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
+    _controller = TextEditingController(text: widget.initialName);
+    _plannedFor = widget.initialPlannedFor;
   }
 
   @override
@@ -1299,7 +1296,12 @@ class _ListNameDialogState extends State<_ListNameDialog> {
       return;
     }
 
-    Navigator.of(context).pop(_controller.text.trim());
+    Navigator.of(context).pop(
+      _ListDetailsDraft(
+        name: _controller.text.trim(),
+        plannedFor: _plannedFor,
+      ),
+    );
   }
 
   @override
@@ -1308,26 +1310,51 @@ class _ListNameDialogState extends State<_ListNameDialog> {
       title: Text(widget.title),
       content: Form(
         key: _formKey,
-        child: TextFormField(
-          controller: _controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Nazwa listy'),
-          maxLength: 100,
-          textInputAction: TextInputAction.done,
-          onFieldSubmitted: (_) => _submit(),
-          validator: (value) {
-            final trimmed = value?.trim() ?? '';
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nazwa listy'),
+              maxLength: 100,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _submit(),
+              validator: (value) {
+                final trimmed = value?.trim() ?? '';
 
-            if (trimmed.isEmpty) {
-              return 'Nazwa listy jest wymagana';
-            }
+                if (trimmed.isEmpty) {
+                  return 'Nazwa listy jest wymagana';
+                }
 
-            if (trimmed.length > 100) {
-              return 'Nazwa listy może mieć maksymalnie 100 znaków';
-            }
+                if (trimmed.length > 100) {
+                  return 'Nazwa listy może mieć maksymalnie 100 znaków';
+                }
 
-            return null;
-          },
+                return null;
+              },
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Dodaj datę do nazwy'),
+              subtitle: _plannedFor == null
+                  ? null
+                  : Text('Dzisiejsza data: ${_formatDate(_plannedFor!)}'),
+              value: _plannedFor != null,
+              onChanged: (enabled) {
+                setState(() {
+                  if (enabled) {
+                    final now = DateTime.now();
+                    _plannedFor = DateTime(now.year, now.month, now.day);
+                  } else {
+                    _plannedFor = null;
+                  }
+                });
+              },
+            ),
+          ],
         ),
       ),
       actions: [
@@ -1342,4 +1369,36 @@ class _ListNameDialogState extends State<_ListNameDialog> {
       ],
     );
   }
+}
+
+String _formatDate(DateTime value) {
+  final local = value.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  const months = <String>[
+    'STY',
+    'LUT',
+    'MAR',
+    'KWI',
+    'MAJ',
+    'CZE',
+    'LIP',
+    'SIE',
+    'WRZ',
+    'PAŹ',
+    'LIS',
+    'GRU',
+  ];
+  return '$day-${months[local.month - 1]}';
+}
+
+bool _sameDay(DateTime? left, DateTime? right) {
+  if (left == null || right == null) {
+    return left == right;
+  }
+
+  final leftLocal = left.toLocal();
+  final rightLocal = right.toLocal();
+  return leftLocal.year == rightLocal.year &&
+      leftLocal.month == rightLocal.month &&
+      leftLocal.day == rightLocal.day;
 }

@@ -47,8 +47,8 @@ void main() {
     expect(find.text('http://100.113.187.63'), findsNothing);
     expect(find.text('Change backend'), findsNothing);
     expect(find.text('Session saved on this device'), findsNothing);
-    expect(find.byTooltip('Archived lists'), findsOneWidget);
-    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.byTooltip('Archiwum'), findsOneWidget);
+    expect(find.byTooltip('Ustawienia'), findsOneWidget);
   });
 
   testWidgets('settings action opens the settings screen', (tester) async {
@@ -81,11 +81,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Ustawienia'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Advanced configuration lives here.'), findsOneWidget);
+    expect(find.text('Ustawienia'), findsOneWidget);
+    expect(
+      find.text('Tutaj znajdziesz ustawienia techniczne aplikacji.'),
+      findsOneWidget,
+    );
   });
 }
 

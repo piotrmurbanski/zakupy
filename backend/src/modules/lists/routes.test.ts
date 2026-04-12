@@ -18,6 +18,7 @@ type TestUser = {
 type TestList = {
   id: string;
   name: string;
+  plannedFor: Date | null;
   ownerUserId: string;
   archivedAt: Date | null;
   archivedByUserId: string | null;
@@ -73,6 +74,7 @@ function buildList(overrides: Partial<TestList> = {}): TestList {
   return {
     id: 'list_1',
     name: 'Weekly groceries',
+    plannedFor: null,
     ownerUserId: 'user_1',
     archivedAt: null,
     archivedByUserId: null,
@@ -209,6 +211,7 @@ async function buildApp(
       }: {
         data: {
           name: string;
+          plannedFor?: Date | null;
           ownerUserId: string;
           members?: { create?: { userId: string; role: string } };
         };
@@ -217,6 +220,7 @@ async function buildApp(
         const list = buildList({
           id: `list_${listsById.size + 1}`,
           name: data.name,
+          plannedFor: data.plannedFor ?? null,
           ownerUserId: data.ownerUserId,
           createdAt: now,
           updatedAt: now,
@@ -233,6 +237,7 @@ async function buildApp(
         where: { id: string };
         data: {
           name?: string;
+          plannedFor?: Date | null;
           archivedAt?: Date | null;
           archivedByUserId?: string | null;
         };
@@ -246,6 +251,8 @@ async function buildApp(
         const updated = {
           ...list,
           name: data.name ?? list.name,
+          plannedFor:
+            data.plannedFor !== undefined ? data.plannedFor : list.plannedFor,
           archivedAt:
             data.archivedAt !== undefined ? data.archivedAt : list.archivedAt,
           archivedByUserId:
@@ -383,6 +390,30 @@ test('POST /lists creates a list for the authenticated user', async () => {
   }
 });
 
+test('POST /lists stores the optional planned date', async () => {
+  const user = buildUser();
+  const lists = new Map<string, TestList | undefined>();
+  const { rawToken, session } = buildSessionToken(user.id);
+  const { app } = await buildApp(new Map([[user.id, user]]), lists, [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/lists',
+      headers: { authorization: `Bearer ${rawToken}` },
+      payload: {
+        name: 'Weekend groceries',
+        plannedFor: '2026-04-15T00:00:00.000Z',
+      },
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.json().list.plannedFor, '2026-04-15T00:00:00.000Z');
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /lists returns only lists visible to the user', async () => {
   const user = buildUser();
   const otherUser = buildUser({ id: 'user_2', email: 'other@example.com' });
@@ -486,6 +517,34 @@ test('PATCH /lists/:listId rejects non-owner edits', async () => {
     });
 
     assert.equal(response.statusCode, 403);
+  } finally {
+    await app.close();
+  }
+});
+
+test('PATCH /lists/:listId updates the optional planned date', async () => {
+  const owner = buildUser();
+  const list = buildList({ id: 'list_1', ownerUserId: owner.id });
+  const { rawToken, session } = buildSessionToken(owner.id);
+  const { app } = await buildApp(
+    new Map([[owner.id, owner]]),
+    new Map([[list.id, list]]),
+    [session],
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/lists/${list.id}`,
+      headers: { authorization: `Bearer ${rawToken}` },
+      payload: {
+        name: 'Weekend groceries',
+        plannedFor: '2026-04-20T00:00:00.000Z',
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().list.plannedFor, '2026-04-20T00:00:00.000Z');
   } finally {
     await app.close();
   }

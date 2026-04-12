@@ -17,18 +17,18 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Reset saved auth data'),
+          title: const Text('Wyczyść zapisane dane'),
           content: const Text(
-            'This clears the remembered backend URL, email, and saved session from this device.',
+            'To usunie z tego urządzenia zapamiętany adres backendu, email i zapisaną sesję.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: const Text('Anuluj'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Reset'),
+              child: const Text('Wyczyść'),
             ),
           ],
         );
@@ -52,7 +52,7 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text('Ustawienia'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -64,18 +64,18 @@ class SettingsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'App settings',
+                    'Ustawienia aplikacji',
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Advanced configuration lives here.',
+                    'Tutaj znajdziesz ustawienia techniczne aplikacji.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
                   if (savedProfile != null) ...[
                     Text(
-                      'Saved auth data',
+                      'Zapisane dane logowania',
                       style: theme.textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),
@@ -88,7 +88,7 @@ class SettingsPage extends StatelessWidget {
                     onPressed: onResetLocalData == null
                         ? null
                         : () => _confirmAndReset(context),
-                    child: const Text('Reset saved auth data'),
+                    child: const Text('Wyczyść zapisane dane'),
                   ),
                 ],
               ),

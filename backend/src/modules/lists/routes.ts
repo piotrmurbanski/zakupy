@@ -8,6 +8,7 @@ import { authenticateRequest, normalizeEmail } from '../auth/session.js';
 type ListResponse = {
   id: string;
   name: string;
+  plannedFor: Date | null;
   ownerUserId: string;
   archivedAt: Date | null;
   isArchived: boolean;
@@ -42,6 +43,7 @@ type InvitationResponse = {
 type ListRecord = {
   id: string;
   name: string;
+  plannedFor: Date | null;
   ownerUserId: string;
   archivedAt: Date | null;
   archivedByUserId: string | null;
@@ -85,6 +87,7 @@ type ListRepository = {
   create(args: {
     data: {
       name: string;
+      plannedFor?: Date | null;
       ownerUserId: string;
       members?: {
         create?: {
@@ -100,6 +103,7 @@ type ListRepository = {
     };
     data: {
       name?: string;
+      plannedFor?: Date | null;
       archivedAt?: Date | null;
       archivedByUserId?: string | null;
     };
@@ -199,7 +203,13 @@ type ListRoutesDeps = {
 };
 
 const listBodySchema = z.object({
-  name: z.string().trim().min(1).max(100)
+  name: z.string().trim().min(1).max(100),
+  plannedFor: z
+    .string()
+    .datetime({ offset: true })
+    .transform((value) => new Date(value))
+    .nullable()
+    .optional(),
 });
 
 const listMemberBodySchema = z.object({
@@ -213,12 +223,13 @@ const defaultDeps: ListRoutesDeps = {
 function toListResponse(
   list: Pick<
     ListRecord,
-    'id' | 'name' | 'ownerUserId' | 'archivedAt' | 'createdAt' | 'updatedAt'
+    'id' | 'name' | 'plannedFor' | 'ownerUserId' | 'archivedAt' | 'createdAt' | 'updatedAt'
   >,
 ): ListResponse {
   return {
     id: list.id,
     name: list.name,
+    plannedFor: list.plannedFor ?? null,
     ownerUserId: list.ownerUserId,
     archivedAt: list.archivedAt ?? null,
     isArchived: list.archivedAt != null,
@@ -356,6 +367,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
       const list = await deps.prisma.shoppingList.create({
         data: {
           name: body.name,
+          plannedFor: body.plannedFor ?? null,
           ownerUserId: user.id,
           members: {
             create: {
@@ -419,7 +431,8 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
           id: list.id
         },
         data: {
-          name: body.name
+          name: body.name,
+          plannedFor: body.plannedFor ?? null,
         }
       });
 
