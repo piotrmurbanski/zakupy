@@ -38,24 +38,25 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Bread');
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nazwa'), 'Bread');
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bread'), findsOneWidget);
+    expect(find.text('Bread (1)'), findsOneWidget);
     expect(apiClient.createItemCalls, 1);
 
     await tester.tap(find.byIcon(Icons.refresh));
     await tester.pump();
 
-    expect(find.text('Bread'), findsOneWidget);
+    expect(find.text('Bread (1)'), findsOneWidget);
 
     createCompleter.complete(
       _item(id: 'item_bread', name: 'Bread', sortOrder: 2),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Bread'), findsOneWidget);
+    expect(find.text('Bread (1)'), findsOneWidget);
     expect(find.byType(Checkbox), findsNWidgets(2));
   });
 
@@ -89,17 +90,17 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Share list'));
+    await tester.tap(find.text('Udostępnij listę'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'User email'),
+      find.widgetWithText(TextFormField, 'Email użytkownika'),
       'second-user@example.com',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Udostępnij'));
     await tester.pumpAndSettle();
 
     expect(apiClient.shareListCalls, 1);
-    expect(find.text('Shared with second-user@example.com.'), findsOneWidget);
+    expect(find.text('Udostępniono second-user@example.com.'), findsOneWidget);
     expect(
       await historyStore.readRecentEmails(),
       equals(const <String>['second-user@example.com']),
@@ -141,7 +142,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Archive list'));
+    await tester.tap(find.text('Archiwizuj listę'));
     await tester.pumpAndSettle();
 
     expect(apiClient.archiveListCalls, 1);
@@ -172,18 +173,18 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Share list'));
+    await tester.tap(find.text('Udostępnij listę'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'User email'),
+      find.widgetWithText(TextFormField, 'Email użytkownika'),
       'pending-user@example.com',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Udostępnij'));
     await tester.pumpAndSettle();
 
     expect(
       find.text(
-        'List shared with pending-user@example.com. It will appear after they sign in.',
+        'Udostępniono pending-user@example.com. Lista pojawi się po zalogowaniu.',
       ),
       findsOneWidget,
     );
@@ -208,18 +209,18 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rename list'));
+    await tester.tap(find.text('Zmień nazwę listy'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'List name'),
+      find.widgetWithText(TextFormField, 'Nazwa listy'),
       'Weekend groceries',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
     expect(apiClient.updateListCalls, 1);
     expect(find.text('Weekend groceries'), findsWidgets);
-    expect(find.text('Renamed to Weekend groceries.'), findsOneWidget);
+    expect(find.text('Zmieniono nazwę na Weekend groceries.'), findsOneWidget);
   });
 
   testWidgets('rejects an empty rename before calling the backend', (
@@ -234,13 +235,14 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rename list'));
+    await tester.tap(find.text('Zmień nazwę listy'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextFormField, 'List name'), '');
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nazwa listy'), '');
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pump();
 
-    expect(find.text('List name is required'), findsOneWidget);
+    expect(find.text('Nazwa listy jest wymagana'), findsOneWidget);
     expect(apiClient.updateListCalls, 0);
   });
 
@@ -259,21 +261,22 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Name'),
+      find.widgetWithText(TextFormField, 'Nazwa'),
       'Oat milk',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Oat milk'), findsOneWidget);
-    expect(find.text('Milk'), findsNothing);
+    expect(find.textContaining('Oat milk'), findsOneWidget);
+    expect(find.textContaining('Milk (2)'), findsNothing);
 
     updateCompleter.completeError(const ApiException('Save failed'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Milk'), findsOneWidget);
-    expect(find.text('Oat milk'), findsNothing);
-    expect(find.text('Could not save item: Save failed'), findsOneWidget);
+    expect(find.textContaining('Milk (2)'), findsOneWidget);
+    expect(find.textContaining('Oat milk'), findsNothing);
+    expect(find.text('Nie udało się zapisać produktu: Save failed'),
+        findsOneWidget);
   });
 
   testWidgets('keeps loaded items visible when refresh fails', (tester) async {
@@ -294,9 +297,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.refresh));
     await tester.pumpAndSettle();
 
-    expect(find.text('Milk'), findsOneWidget);
+    expect(find.textContaining('Milk (2)'), findsOneWidget);
     expect(
-      find.textContaining('Could not refresh items: Refresh failed'),
+      find.textContaining('Nie udało się odświeżyć produktów: Refresh failed'),
       findsOneWidget,
     );
   });
@@ -322,7 +325,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
-    expect(find.text('Could not update item: Update failed'), findsOneWidget);
+    expect(find.text('Nie udało się zaktualizować produktu: Update failed'),
+        findsOneWidget);
   });
 
   testWidgets('reverts an optimistic delete when the backend rejects it', (
@@ -339,16 +343,17 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.delete_outline));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Usuń'));
     await tester.pump();
 
-    expect(find.text('Milk'), findsNothing);
+    expect(find.textContaining('Milk (2)'), findsNothing);
 
     deleteCompleter.completeError(const ApiException('Delete failed'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Milk'), findsOneWidget);
-    expect(find.text('Could not delete item: Delete failed'), findsOneWidget);
+    expect(find.textContaining('Milk (2)'), findsOneWidget);
+    expect(find.text('Nie udało się usunąć produktu: Delete failed'),
+        findsOneWidget);
   });
 
   testWidgets('marks the list as mutated as soon as a toggle starts',
@@ -380,8 +385,8 @@ void main() {
       _item(
         id: 'item_1',
         name: 'Milk',
-        quantity: '2',
-        unit: 'l',
+        quantity: 2,
+        comment: '2%',
         isChecked: true,
         sortOrder: 1,
       ),
@@ -412,16 +417,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.getTopLeft(find.text('Milk')).dy,
-      lessThan(tester.getTopLeft(find.text('Bread')).dy),
+      tester.getTopLeft(find.text('Milk (1)')).dy,
+      lessThan(tester.getTopLeft(find.text('Bread (1)')).dy),
     );
 
     await tester.tap(find.byType(Checkbox).first);
     await tester.pump();
 
     expect(
-      tester.getTopLeft(find.text('Bread')).dy,
-      lessThan(tester.getTopLeft(find.text('Milk')).dy),
+      tester.getTopLeft(find.text('Bread (1)')).dy,
+      lessThan(tester.getTopLeft(find.text('Milk (1)')).dy),
     );
 
     updateCompleter.complete(
@@ -434,21 +439,61 @@ void main() {
     );
     await tester.pumpAndSettle();
   });
+
+  testWidgets('shows suggestions and adds them to the list', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[],
+      suggestions: <ItemSuggestion>[
+        ItemSuggestion(
+          id: 'suggestion_milk',
+          name: 'Milk',
+          comment: '2%',
+          usageCount: 12,
+          lastUsedAt: DateTime.utc(2026, 4, 10, 12),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sugestie'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ActionChip, 'Milk • 2%'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.createItemCalls, 1);
+    expect(find.text('Milk (1)'), findsOneWidget);
+  });
+
+  testWidgets('increments item quantity with plus button', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Zwiększ ilość'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Milk (3)'), findsOneWidget);
+    expect(apiClient.lastUpdatedDraft?.quantity, 3);
+  });
 }
 
 final ShoppingListItem _milkItem = _item(
   id: 'item_1',
   name: 'Milk',
-  quantity: '2',
-  unit: 'l',
+  quantity: 2,
+  comment: '2%',
   sortOrder: 1,
 );
 
 ShoppingListItem _item({
   required String id,
   required String name,
-  String? quantity,
-  String? unit,
+  int quantity = 1,
+  String? comment,
   bool isChecked = false,
   int sortOrder = 0,
 }) {
@@ -456,8 +501,8 @@ ShoppingListItem _item({
     id: id,
     listId: 'list_1',
     name: name,
+    comment: comment,
     quantity: quantity,
-    unit: unit,
     isChecked: isChecked,
     sortOrder: sortOrder,
     createdByUserId: 'user_1',
@@ -468,7 +513,8 @@ ShoppingListItem _item({
 
 class _FakeApiClient extends ApiClient {
   _FakeApiClient({
-    required this.items,
+    required List<ShoppingListItem> items,
+    List<ItemSuggestion> suggestions = const <ItemSuggestion>[],
     this.createItemHandler,
     this.updateItemHandler,
     this.updateListHandler,
@@ -476,9 +522,12 @@ class _FakeApiClient extends ApiClient {
     this.deleteItemHandler,
     this.fetchItemsHandler,
     this.shareListHandler,
-  }) : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
+  })  : items = List<ShoppingListItem>.from(items),
+        suggestions = List<ItemSuggestion>.from(suggestions),
+        super(baseUrl: 'http://localhost:3000', accessToken: 'token');
 
   final List<ShoppingListItem> items;
+  final List<ItemSuggestion> suggestions;
   final Future<List<ShoppingListItem>> Function(int callCount)?
       fetchItemsHandler;
   final Future<ShoppingListItem> Function(String listId, ItemDraft draft)?
@@ -500,6 +549,7 @@ class _FakeApiClient extends ApiClient {
   int shareListCalls = 0;
   int updateListCalls = 0;
   int archiveListCalls = 0;
+  ItemDraft? lastUpdatedDraft;
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
@@ -514,6 +564,11 @@ class _FakeApiClient extends ApiClient {
   }
 
   @override
+  Future<List<ItemSuggestion>> fetchItemSuggestions() async {
+    return List<ItemSuggestion>.from(suggestions);
+  }
+
+  @override
   Future<ShoppingListItem> createItem(String listId, ItemDraft draft) async {
     createItemCalls += 1;
 
@@ -524,8 +579,8 @@ class _FakeApiClient extends ApiClient {
     final createdItem = _item(
       id: 'created_${items.length + 1}',
       name: draft.name,
+      comment: draft.comment,
       quantity: draft.quantity,
-      unit: draft.unit,
       isChecked: draft.isChecked,
       sortOrder: items.length,
     );
@@ -539,6 +594,8 @@ class _FakeApiClient extends ApiClient {
     String itemId,
     ItemDraft draft,
   ) async {
+    lastUpdatedDraft = draft;
+
     if (updateItemHandler != null) {
       return updateItemHandler!(listId, itemId, draft);
     }
@@ -546,8 +603,8 @@ class _FakeApiClient extends ApiClient {
     final index = items.indexWhere((item) => item.id == itemId);
     final updatedItem = items[index].copyWith(
       name: draft.name,
+      comment: draft.comment,
       quantity: draft.quantity,
-      unit: draft.unit,
       isChecked: draft.isChecked,
     );
     items[index] = updatedItem;
