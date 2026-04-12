@@ -7,13 +7,15 @@ import 'features/auth/auth_profile_store.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 
-const _defaultApiBaseUrl =
-    String.fromEnvironment('API_BASE_URL', defaultValue: '');
+const _defaultApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: '',
+);
 
 ThemeData buildLightTheme() {
   return ThemeData(
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2F6B3B),
+      seedColor: const Color(0xFF0A84FF),
       brightness: Brightness.light,
     ),
     useMaterial3: true,
@@ -23,7 +25,7 @@ ThemeData buildLightTheme() {
 ThemeData buildDarkTheme() {
   return ThemeData(
     colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2F6B3B),
+      seedColor: const Color(0xFF0A84FF),
       brightness: Brightness.dark,
     ),
     useMaterial3: true,
@@ -138,30 +140,32 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
           errorMessage: state.errorMessage,
           themeMode: widget.themeMode,
           onThemeModeChanged: widget.onThemeModeChanged,
-          onRequestCode: ({
-            required String baseUrl,
-            required String email,
-            String? displayName,
-          }) {
-            return _sessionController.requestCode(
-              baseUrl: baseUrl,
-              email: email,
-              displayName: displayName,
-            );
-          },
-          onVerifyCode: ({
-            required String baseUrl,
-            required String email,
-            required String code,
-            String? displayName,
-          }) {
-            return _sessionController.verifyCode(
-              baseUrl: baseUrl,
-              email: email,
-              code: code,
-              displayName: displayName,
-            );
-          },
+          onRequestCode:
+              ({
+                required String baseUrl,
+                required String email,
+                String? displayName,
+              }) {
+                return _sessionController.requestCode(
+                  baseUrl: baseUrl,
+                  email: email,
+                  displayName: displayName,
+                );
+              },
+          onVerifyCode:
+              ({
+                required String baseUrl,
+                required String email,
+                required String code,
+                String? displayName,
+              }) {
+                return _sessionController.verifyCode(
+                  baseUrl: baseUrl,
+                  email: email,
+                  code: code,
+                  displayName: displayName,
+                );
+              },
         );
       },
     );
@@ -173,10 +177,6 @@ class _BootstrapLoadingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

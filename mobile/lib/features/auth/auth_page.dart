@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/zakupy_logo.dart';
 import '../../core/theme/theme_mode_menu.dart';
 
-typedef RequestCodeSubmit = Future<void> Function({
-  required String baseUrl,
-  required String email,
-  String? displayName,
-});
+typedef RequestCodeSubmit =
+    Future<void> Function({
+      required String baseUrl,
+      required String email,
+      String? displayName,
+    });
 
-typedef VerifyCodeSubmit = Future<void> Function({
-  required String baseUrl,
-  required String email,
-  required String code,
-  String? displayName,
-});
+typedef VerifyCodeSubmit =
+    Future<void> Function({
+      required String baseUrl,
+      required String email,
+      required String code,
+      String? displayName,
+    });
 
 enum _AuthStep { requestCode, verifyCode }
 
@@ -128,7 +131,14 @@ class _AuthPageState extends State<AuthPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Zakupy'),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ZakupyLogo(size: 30, showGlow: false),
+            SizedBox(width: 12),
+            Text('Zakupy'),
+          ],
+        ),
         actions: [
           ThemeModeMenuButton(
             currentThemeMode: widget.themeMode,
@@ -163,6 +173,8 @@ class _AuthPageState extends State<AuthPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          const Center(child: ZakupyLogo(size: 92)),
+                          const SizedBox(height: 20),
                           Text('Zakupy', style: theme.textTheme.headlineMedium),
                           const SizedBox(height: 8),
                           Text(
@@ -194,7 +206,9 @@ class _AuthPageState extends State<AuthPage> {
 
                               final uri = Uri.tryParse(trimmed);
 
-                              if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+                              if (uri == null ||
+                                  !uri.hasScheme ||
+                                  uri.host.isEmpty) {
                                 return 'Enter a valid URL, for example https://zakupy.your-tailnet.ts.net';
                               }
 
@@ -213,8 +227,9 @@ class _AuthPageState extends State<AuthPage> {
                             enabled: !widget.isSubmitting,
                             validator: (value) {
                               final trimmed = value?.trim() ?? '';
-                              final emailPattern =
-                                  RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                              final emailPattern = RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              );
 
                               if (!emailPattern.hasMatch(trimmed)) {
                                 return 'Enter a valid email address';
@@ -277,8 +292,8 @@ class _AuthPageState extends State<AuthPage> {
                             onPressed: widget.isSubmitting
                                 ? null
                                 : isRequestStep
-                                    ? _requestCode
-                                    : _verifyCode,
+                                ? _requestCode
+                                : _verifyCode,
                             child: widget.isSubmitting
                                 ? const SizedBox(
                                     width: 20,
@@ -294,14 +309,16 @@ class _AuthPageState extends State<AuthPage> {
                           const SizedBox(height: 12),
                           if (!isRequestStep)
                             TextButton(
-                              onPressed:
-                                  widget.isSubmitting ? null : _editEmail,
+                              onPressed: widget.isSubmitting
+                                  ? null
+                                  : _editEmail,
                               child: const Text('Use a different email'),
                             ),
                           if (!isRequestStep)
                             TextButton(
-                              onPressed:
-                                  widget.isSubmitting ? null : _requestCode,
+                              onPressed: widget.isSubmitting
+                                  ? null
+                                  : _requestCode,
                               child: const Text('Send code again'),
                             ),
                         ],
