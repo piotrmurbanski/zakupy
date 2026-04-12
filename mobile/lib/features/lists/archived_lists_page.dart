@@ -75,6 +75,7 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
           apiClient: widget.apiClient,
           listId: list.id,
           listName: list.name,
+          plannedFor: list.plannedFor,
           isArchived: true,
           canManageList: list.isOwnedBy(widget.currentUserId),
           onUnauthorized: widget.onUnauthorized,
@@ -96,7 +97,7 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Restored ${list.name}.')),
+        SnackBar(content: Text('Przywrócono listę ${list.name}.')),
       );
       await _loadLists(silent: true);
     } on ApiException catch (error) {
@@ -110,7 +111,7 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not restore list: ${error.message}')),
+        SnackBar(content: Text('Nie udało się przywrócić listy: ${error.message}')),
       );
     }
   }
@@ -119,11 +120,12 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Archived lists'),
+        title: const Text('Archiwum'),
         actions: [
           IconButton(
             onPressed: () => _loadLists(),
             icon: const Icon(Icons.refresh),
+            tooltip: 'Odśwież',
           ),
         ],
       ),
@@ -161,7 +163,7 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
           SizedBox(height: 180),
-          Center(child: Text('No archived lists.')),
+          Center(child: Text('Brak zarchiwizowanych list.')),
         ],
       );
     }
@@ -177,16 +179,16 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
         return Card(
           child: ListTile(
             onTap: () => _openList(list),
-            title: Text(list.name),
+            title: _ArchivedListTitle(name: list.name, plannedFor: list.plannedFor),
             subtitle: Text(
               list.isOwnedBy(widget.currentUserId)
-                  ? 'Archived by you'
-                  : 'Archived shared list',
+                  ? 'Zarchiwizowana przez Ciebie'
+                  : 'Zarchiwizowana lista współdzielona',
             ),
             trailing: list.isOwnedBy(widget.currentUserId)
                 ? TextButton(
                     onPressed: () => _restoreList(list),
-                    child: const Text('Restore'),
+                    child: const Text('Przywróć'),
                   )
                 : const Icon(Icons.chevron_right),
           ),
@@ -194,4 +196,58 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
       },
     );
   }
+}
+
+class _ArchivedListTitle extends StatelessWidget {
+  const _ArchivedListTitle({
+    required this.name,
+    required this.plannedFor,
+  });
+
+  final String name;
+  final DateTime? plannedFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(name),
+        if (plannedFor != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              _formatArchivedDate(plannedFor!),
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+String _formatArchivedDate(DateTime value) {
+  final local = value.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  const months = <String>[
+    'STY',
+    'LUT',
+    'MAR',
+    'KWI',
+    'MAJ',
+    'CZE',
+    'LIP',
+    'SIE',
+    'WRZ',
+    'PAŹ',
+    'LIS',
+    'GRU',
+  ];
+  return '$day-${months[local.month - 1]}';
 }

@@ -1,7 +1,7 @@
 name: zakupy_mobile
 description: Private shopping list app for two users.
 publish_to: "none"
-version: 0.1.0+1
+version: 0.1.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

@@ -131,6 +131,7 @@ Response:
     {
       "id": "list_id",
       "name": "Weekly groceries",
+      "plannedFor": "2026-04-15T00:00:00.000Z",
       "ownerUserId": "user_id",
       "isArchived": false,
       "archivedAt": null,
@@ -151,7 +152,8 @@ Request body:
 
 ```json
 {
-  "name": "Weekly groceries"
+  "name": "Weekly groceries",
+  "plannedFor": "2026-04-15T00:00:00.000Z"
 }
 ```
 
@@ -162,6 +164,7 @@ Response:
   "list": {
     "id": "list_id",
     "name": "Weekly groceries",
+    "plannedFor": "2026-04-15T00:00:00.000Z",
     "ownerUserId": "user_id",
     "isArchived": false,
     "archivedAt": null,
@@ -186,6 +189,7 @@ Response:
   "list": {
     "id": "list_id",
     "name": "Weekly groceries",
+    "plannedFor": "2026-04-15T00:00:00.000Z",
     "ownerUserId": "user_id",
     "isArchived": false,
     "archivedAt": null,
@@ -201,7 +205,8 @@ Request body:
 
 ```json
 {
-  "name": "Updated groceries"
+  "name": "Updated groceries",
+  "plannedFor": null
 }
 ```
 
@@ -212,6 +217,7 @@ Response:
   "list": {
     "id": "list_id",
     "name": "Updated groceries",
+    "plannedFor": null,
     "ownerUserId": "user_id",
     "isArchived": false,
     "archivedAt": null,

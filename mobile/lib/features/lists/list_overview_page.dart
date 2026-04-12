@@ -76,7 +76,7 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
 
       if (hasExistingLists) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not refresh lists: $message')),
+          SnackBar(content: Text('Nie udało się odświeżyć list: $message')),
         );
       }
     }
@@ -89,6 +89,7 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
           apiClient: widget.apiClient,
           listId: list.id,
           listName: list.name,
+          plannedFor: list.plannedFor,
           shareEmailHistoryStore: _shareEmailHistoryStore,
         ),
       ),
@@ -118,8 +119,8 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
       }
 
       final message = result.member != null
-          ? 'Shared with ${result.member!.user.email}.'
-          : 'List shared with ${result.invitation!.email}. It will appear after they sign in.';
+          ? 'Udostępniono ${result.member!.user.email}.'
+          : 'Lista została udostępniona ${result.invitation!.email}. Pojawi się po zalogowaniu.';
 
       ScaffoldMessenger.of(
         context,
@@ -139,11 +140,12 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your lists'),
+        title: const Text('Twoje listy'),
         actions: [
           IconButton(
             onPressed: () => _reloadLists(),
             icon: const Icon(Icons.refresh),
+            tooltip: 'Odśwież',
           ),
           ...?widget.actions,
         ],
@@ -182,18 +184,18 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
                 const Icon(Icons.error_outline, size: 48),
                 const SizedBox(height: 12),
                 Text(
-                  'Could not load your lists',
+                  'Nie udało się pobrać list',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _errorMessage ?? 'Unknown error',
+                  _errorMessage ?? 'Nieznany błąd',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _reloadLists(),
-                  child: const Text('Retry'),
+                  child: const Text('Spróbuj ponownie'),
                 ),
               ],
             ),
@@ -208,7 +210,7 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         children: [
           if (header != null) header,
           const SizedBox(height: 160),
-          const Center(child: Text('No shopping lists yet.')),
+          const Center(child: Text('Brak list zakupów.')),
         ],
       );
     }
@@ -229,13 +231,16 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
         return Card(
           child: ListTile(
             onTap: () => _openList(list),
-            title: Text(list.name),
-            subtitle: Text('Updated ${_formatUpdatedAt(list.updatedAt)}'),
+            title: _OverviewListTitle(
+              name: list.name,
+              plannedFor: list.plannedFor,
+            ),
+            subtitle: Text('Aktualizacja ${_formatUpdatedAt(list.updatedAt)}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Share list',
+                  tooltip: 'Udostępnij listę',
                   onPressed: () => _shareList(list),
                   icon: const Icon(Icons.share_outlined),
                 ),
@@ -256,5 +261,59 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
     final minute = local.minute.toString().padLeft(2, '0');
 
     return '$month/$day $hour:$minute';
+  }
+}
+
+class _OverviewListTitle extends StatelessWidget {
+  const _OverviewListTitle({
+    required this.name,
+    required this.plannedFor,
+  });
+
+  final String name;
+  final DateTime? plannedFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(name),
+        if (plannedFor != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              _formatOverviewDate(plannedFor!),
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _formatOverviewDate(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    const months = <String>[
+      'STY',
+      'LUT',
+      'MAR',
+      'KWI',
+      'MAJ',
+      'CZE',
+      'LIP',
+      'SIE',
+      'WRZ',
+      'PAŹ',
+      'LIS',
+      'GRU',
+    ];
+    return '$day-${months[local.month - 1]}';
   }
 }

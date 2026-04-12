@@ -59,6 +59,7 @@ model AuthSession {
 model ShoppingList {
   id          String       @id @default(cuid())
   name        String
+  plannedFor  DateTime?    @map("planned_for")
   ownerUserId String       @map("owner_user_id")
   archivedByUserId String? @map("archived_by_user_id")
   archivedAt  DateTime?    @map("archived_at")

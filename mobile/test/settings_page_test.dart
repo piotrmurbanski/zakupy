@@ -27,9 +27,9 @@ void main() {
     expect(find.text('Backend: http://localhost:3000'), findsOneWidget);
     expect(find.text('Email: test@example.com'), findsOneWidget);
 
-    await tester.tap(find.text('Reset saved auth data'));
+    await tester.tap(find.text('Wyczyść zapisane dane'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Reset'));
+    await tester.tap(find.text('Wyczyść'));
     await tester.pumpAndSettle();
 
     expect(resetCalls, 1);

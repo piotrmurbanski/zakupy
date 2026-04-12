@@ -44,7 +44,7 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) =>
-            widget is Text && (widget.data?.startsWith('Updated ') ?? false),
+            widget is Text && (widget.data?.startsWith('Aktualizacja ') ?? false),
       ),
       findsOneWidget,
     );
@@ -63,7 +63,7 @@ void main() {
     await tester.pumpWidget(buildSubject(_FakeApiClient(lists: const [])));
     await tester.pumpAndSettle();
 
-    expect(find.text('No shopping lists yet.'), findsOneWidget);
+    expect(find.text('Brak list zakupów.'), findsOneWidget);
   });
 
   testWidgets('shows an error state when loading lists fails', (tester) async {
@@ -72,9 +72,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not load your lists'), findsOneWidget);
+    expect(find.text('Nie udało się pobrać list'), findsOneWidget);
     expect(find.text('Bad state: boom'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Spróbuj ponownie'), findsOneWidget);
   });
 
   testWidgets('keeps loaded lists visible when refresh fails', (tester) async {
@@ -107,6 +107,10 @@ void main() {
     expect(find.text('Weekly groceries'), findsOneWidget);
     expect(
       find.textContaining('Could not refresh lists: Bad state: boom'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Nie udało się odświeżyć list: Bad state: boom'),
       findsOneWidget,
     );
   });
@@ -158,9 +162,9 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Share list'), findsNWidgets(2));
+    expect(find.byTooltip('Udostępnij listę'), findsNWidgets(2));
 
-    await tester.tap(find.byTooltip('Share list').at(1));
+    await tester.tap(find.byTooltip('Udostępnij listę').at(1));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
@@ -214,7 +218,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Share list'));
+    await tester.tap(find.byTooltip('Udostępnij listę'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
@@ -229,7 +233,7 @@ void main() {
       equals(const <String>['second-user@example.com']),
     );
 
-    await tester.tap(find.byTooltip('Share list'));
+    await tester.tap(find.byTooltip('Udostępnij listę'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 

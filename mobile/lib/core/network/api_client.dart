@@ -119,12 +119,17 @@ class ApiClient {
     });
   }
 
-  Future<ShoppingListSummary> updateList(String listId, String name) {
+  Future<ShoppingListSummary> updateList(
+    String listId, {
+    required String name,
+    DateTime? plannedFor,
+  }) {
     return _guard(() async {
       final response = await _dio.patch<Map<String, dynamic>>(
         '/lists/$listId',
         data: {
           'name': name.trim(),
+          'plannedFor': plannedFor?.toUtc().toIso8601String(),
         },
         options: _authOptions(),
       );
@@ -133,12 +138,16 @@ class ApiClient {
     });
   }
 
-  Future<ShoppingListSummary> createList(String name) {
+  Future<ShoppingListSummary> createList({
+    required String name,
+    DateTime? plannedFor,
+  }) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists',
         data: {
           'name': name.trim(),
+          'plannedFor': plannedFor?.toUtc().toIso8601String(),
         },
         options: _authOptions(),
       );
@@ -406,6 +415,7 @@ class ShoppingListSummary {
     required this.name,
     required this.ownerUserId,
     this.isArchived = false,
+    this.plannedFor,
     required this.createdAt,
     required this.updatedAt,
     this.archivedAt,
@@ -415,6 +425,7 @@ class ShoppingListSummary {
   final String name;
   final String ownerUserId;
   final bool isArchived;
+  final DateTime? plannedFor;
   final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -426,6 +437,9 @@ class ShoppingListSummary {
       id: json['id'] as String,
       name: json['name'] as String,
       ownerUserId: json['ownerUserId'] as String,
+      plannedFor: json['plannedFor'] == null
+          ? null
+          : DateTime.parse(json['plannedFor'] as String),
       isArchived: json['isArchived'] as bool? ??
           ((json['archivedAt'] as String?) != null),
       archivedAt: json['archivedAt'] == null

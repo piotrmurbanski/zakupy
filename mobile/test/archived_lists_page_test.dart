@@ -22,13 +22,13 @@ void main() {
 
     expect(find.text('Archived groceries'), findsOneWidget);
     expect(find.text('Active groceries'), findsNothing);
-    expect(find.text('Restore'), findsOneWidget);
+    expect(find.text('Przywróć'), findsOneWidget);
 
-    await tester.tap(find.text('Restore'));
+    await tester.tap(find.text('Przywróć'));
     await tester.pumpAndSettle();
 
     expect(apiClient.restoreCalls, 1);
-    expect(find.text('Restored Archived groceries.'), findsOneWidget);
+    expect(find.text('Przywrócono listę Archived groceries.'), findsOneWidget);
   });
 }
 
