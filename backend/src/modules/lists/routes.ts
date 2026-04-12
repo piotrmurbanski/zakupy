@@ -270,7 +270,10 @@ function toInvitationResponse(invitation: Pick<InvitationRecord, 'id' | 'listId'
   };
 }
 
-function parseBody<T>(schema: z.ZodType<T>, body: unknown) {
+function parseBody<TSchema extends z.ZodTypeAny>(
+  schema: TSchema,
+  body: unknown,
+): z.output<TSchema> | null {
   const result = schema.safeParse(body);
 
   if (!result.success) {
