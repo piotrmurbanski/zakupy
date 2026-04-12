@@ -32,6 +32,7 @@ class ListDetailPage extends StatefulWidget {
 
 class _ListDetailPageState extends State<ListDetailPage> {
   final List<ShoppingListItem> _items = <ShoppingListItem>[];
+  final List<ItemSuggestion> _suggestions = <ItemSuggestion>[];
   final Set<String> _pendingItemIds = <String>{};
   final Map<String, _PendingItemMutation> _pendingItemMutations =
       <String, _PendingItemMutation>{};
@@ -54,9 +55,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
     _listName = widget.listName ?? 'List ${widget.listId}';
     _isArchived = widget.isArchived;
     _reloadItems();
+    _reloadSuggestions();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         _reloadItems(silent: true);
+        _reloadSuggestions(silent: true);
       }
     });
   }
@@ -112,24 +115,43 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
       if (hasExistingItems) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not refresh items: $message')),
+          SnackBar(
+              content: Text('Nie udało się odświeżyć produktów: $message')),
         );
       }
     }
   }
 
-  Future<void> _addItem() async {
-    final draft = await showDialog<ItemDraft>(
-      context: context,
-      builder: (context) {
-        return const _ItemEditorDialog();
-      },
-    );
+  Future<void> _reloadSuggestions({bool silent = false}) async {
+    try {
+      final suggestions = await widget.apiClient.fetchItemSuggestions();
 
-    if (draft == null) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _suggestions
+          ..clear()
+          ..addAll(suggestions);
+      });
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nie udało się pobrać sugestii: ${error.message}'),
+          ),
+        );
+      }
     }
+  }
 
+  Future<void> _createItemFromDraft(ItemDraft draft) async {
     final temporaryId = _nextTemporaryItemId();
     final optimisticItem = _buildOptimisticItem(
       id: temporaryId,
@@ -164,6 +186,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         upsertById(target: _items, value: createdItem, idOf: (item) => item.id);
         _sortItems();
       });
+
+      unawaited(_reloadSuggestions(silent: true));
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -181,9 +205,25 @@ class _ListDetailPageState extends State<ListDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not add item: ${error.message}')),
+        SnackBar(
+            content: Text('Nie udało się dodać produktu: ${error.message}')),
       );
     }
+  }
+
+  Future<void> _addItem() async {
+    final draft = await showDialog<ItemDraft>(
+      context: context,
+      builder: (context) {
+        return const _ItemEditorDialog();
+      },
+    );
+
+    if (draft == null) {
+      return;
+    }
+
+    await _createItemFromDraft(draft);
   }
 
   Future<void> _editItem(ShoppingListItem item) async {
@@ -206,8 +246,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final previousItem = _items[existingIndex];
     final optimisticItem = previousItem.copyWith(
       name: draft.name,
+      comment: draft.comment,
       quantity: draft.quantity,
-      unit: draft.unit,
       isChecked: draft.isChecked,
     );
 
@@ -243,6 +283,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         );
         _sortItems();
       });
+
+      unawaited(_reloadSuggestions(silent: true));
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
         await widget.onUnauthorized!();
@@ -265,7 +307,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save item: ${error.message}')),
+        SnackBar(
+            content: Text('Nie udało się zapisać produktu: ${error.message}')),
       );
     }
   }
@@ -339,9 +382,121 @@ class _ListDetailPageState extends State<ListDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update item: ${error.message}')),
+        SnackBar(
+            content:
+                Text('Nie udało się zaktualizować produktu: ${error.message}')),
       );
     }
+  }
+
+  Future<void> _changeQuantity(ShoppingListItem item, int delta) async {
+    final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
+    if (existingIndex == -1) {
+      return;
+    }
+
+    final previousItem = _items[existingIndex];
+    final nextQuantity = previousItem.quantity + delta;
+    if (nextQuantity < 1) {
+      return;
+    }
+
+    final optimisticDraft = previousItem.toDraft().copyWith(
+          quantity: nextQuantity,
+        );
+    final optimisticItem = previousItem.copyWith(quantity: nextQuantity);
+
+    setState(() {
+      _didMutateList = true;
+      _pendingItemIds.add(item.id);
+      _pendingItemMutations[item.id] = _PendingItemMutation.update(
+        previousItem: previousItem,
+        optimisticItem: optimisticItem,
+      );
+      _items[existingIndex] = optimisticItem;
+      _sortItems();
+    });
+
+    try {
+      final updatedItem = await widget.apiClient.updateItem(
+        widget.listId,
+        item.id,
+        optimisticDraft,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
+        upsertById(
+          target: _items,
+          value: updatedItem,
+          idOf: (entry) => entry.id,
+        );
+        _sortItems();
+      });
+
+      if (delta > 0) {
+        unawaited(_reloadSuggestions(silent: true));
+      }
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _pendingItemIds.remove(item.id);
+        _pendingItemMutations.remove(item.id);
+        upsertById(
+          target: _items,
+          value: previousItem,
+          idOf: (entry) => entry.id,
+        );
+        _sortItems();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Nie udało się zmienić ilości: ${error.message}')),
+      );
+    }
+  }
+
+  Future<void> _addSuggestion(ItemSuggestion suggestion) async {
+    ShoppingListItem? existingItem;
+
+    for (final item in _items) {
+      final matchesName = item.name.trim().toLowerCase() ==
+          suggestion.name.trim().toLowerCase();
+      final matchesComment = (item.comment?.trim().toLowerCase() ?? '') ==
+          (suggestion.comment?.trim().toLowerCase() ?? '');
+
+      if (!item.isChecked && matchesName && matchesComment) {
+        existingItem = item;
+        break;
+      }
+    }
+
+    if (existingItem != null) {
+      await _changeQuantity(existingItem, 1);
+      return;
+    }
+
+    await _createItemFromDraft(
+      ItemDraft(
+        name: suggestion.name,
+        comment: suggestion.comment,
+        quantity: 1,
+      ),
+    );
   }
 
   Future<void> _deleteItem(ShoppingListItem item) async {
@@ -349,16 +504,16 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete item'),
-          content: Text('Delete "${item.name}"?'),
+          title: const Text('Usuń produkt'),
+          content: Text('Usunąć "${item.name}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: const Text('Anuluj'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
+              child: const Text('Usuń'),
             ),
           ],
         );
@@ -415,7 +570,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not delete item: ${error.message}')),
+        SnackBar(
+            content: Text('Nie udało się usunąć produktu: ${error.message}')),
       );
     }
   }
@@ -451,8 +607,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       final message = result.member != null
-          ? 'Shared with ${result.member!.user.email}.'
-          : 'List shared with ${result.invitation!.email}. It will appear after they sign in.';
+          ? 'Udostępniono ${result.member!.user.email}.'
+          : 'Udostępniono ${result.invitation!.email}. Lista pojawi się po zalogowaniu.';
 
       ScaffoldMessenger.of(
         context,
@@ -488,9 +644,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
       context: context,
       builder: (context) {
         return _ListNameDialog(
-          title: 'Rename list',
+          title: 'Zmień nazwę listy',
           initialValue: _listName,
-          actionLabel: 'Save',
+          actionLabel: 'Zapisz',
         );
       },
     );
@@ -515,7 +671,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Renamed to ${updatedList.name}.')),
+        SnackBar(content: Text('Zmieniono nazwę na ${updatedList.name}.')),
       );
     } on ApiException catch (error) {
       if (error.isUnauthorized && widget.onUnauthorized != null) {
@@ -528,7 +684,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not rename list: ${error.message}')),
+        SnackBar(
+            content:
+                Text('Nie udało się zmienić nazwy listy: ${error.message}')),
       );
     }
   }
@@ -556,8 +714,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         SnackBar(
           content: Text(
             updatedList.isArchived
-                ? 'List moved to archive.'
-                : 'List restored.',
+                ? 'Lista przeniesiona do archiwum.'
+                : 'Lista przywrócona.',
           ),
         ),
       );
@@ -577,8 +735,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
         SnackBar(
           content: Text(
             _isArchived
-                ? 'Could not restore list: ${error.message}'
-                : 'Could not archive list: ${error.message}',
+                ? 'Nie udało się przywrócić listy: ${error.message}'
+                : 'Nie udało się zarchiwizować listy: ${error.message}',
           ),
         ),
       );
@@ -627,17 +785,19 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 PopupMenuItem<_ListAction>(
                   value: _ListAction.share,
                   enabled: !_isSharing,
-                  child: const Text('Share list'),
+                  child: const Text('Udostępnij listę'),
                 ),
                 if (widget.canManageList)
                   const PopupMenuItem<_ListAction>(
                     value: _ListAction.rename,
-                    child: Text('Rename list'),
+                    child: Text('Zmień nazwę listy'),
                   ),
                 if (widget.canManageList)
                   PopupMenuItem<_ListAction>(
                     value: _ListAction.archive,
-                    child: Text(_isArchived ? 'Restore list' : 'Archive list'),
+                    child: Text(
+                      _isArchived ? 'Przywróć listę' : 'Archiwizuj listę',
+                    ),
                   ),
               ],
             ),
@@ -648,7 +808,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
           child: const Icon(Icons.add),
         ),
         body: RefreshIndicator(
-          onRefresh: () => _reloadItems(silent: true),
+          onRefresh: () async {
+            await _reloadItems(silent: true);
+            await _reloadSuggestions(silent: true);
+          },
           child: _buildBody(context),
         ),
       ),
@@ -694,7 +857,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               isPending ? null : (checked) => _onToggleRequested(item, checked),
         ),
         title: Text(
-          item.name,
+          '${item.name} (${item.quantity})',
           style: TextStyle(
             decoration: item.isChecked
                 ? TextDecoration.lineThrough
@@ -705,6 +868,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              onPressed: isPending || item.quantity <= 1
+                  ? null
+                  : () => _changeQuantity(item, -1),
+              icon: const Icon(Icons.remove_circle_outline),
+              tooltip: 'Zmniejsz ilość',
+            ),
+            IconButton(
+              onPressed: isPending ? null : () => _changeQuantity(item, 1),
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Zwiększ ilość',
+            ),
             IconButton(
               onPressed: isPending ? null : () => _onEditRequested(item),
               icon: const Icon(Icons.edit_outlined),
@@ -806,8 +981,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       id: id,
       listId: widget.listId,
       name: draft.name,
+      comment: draft.comment,
       quantity: draft.quantity,
-      unit: draft.unit,
       isChecked: draft.isChecked,
       sortOrder: sortOrder,
       createdByUserId: 'pending',
@@ -839,7 +1014,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const Icon(Icons.error_outline, size: 48),
                 const SizedBox(height: 12),
                 Text(
-                  'Could not load items',
+                  'Nie udało się wczytać produktów',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
@@ -850,7 +1025,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _reloadItems(),
-                  child: const Text('Retry'),
+                  child: const Text('Spróbuj ponownie'),
                 ),
               ],
             ),
@@ -862,42 +1037,78 @@ class _ListDetailPageState extends State<ListDetailPage> {
     if (_items.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 160),
-          Center(child: Text('No items yet. Add the first one.')),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+        children: [
+          const SizedBox(height: 160),
+          const Center(child: Text('Brak produktów. Dodaj pierwszy.')),
+          if (_suggestions.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _buildSuggestionsSection(context),
+          ],
         ],
       );
     }
 
-    return ListView.separated(
+    return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-      itemCount: _items.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final item = _items[index];
-
-        return _buildItemTile(item);
-      },
+      children: [
+        for (final item in _items) ...[
+          _buildItemTile(item),
+          const SizedBox(height: 8),
+        ],
+        if (_suggestions.isNotEmpty) _buildSuggestionsSection(context),
+      ],
     );
   }
 
   Widget? _buildSubtitle(ShoppingListItem item) {
-    final details = <String>[];
-
-    if (item.quantity != null && item.quantity!.isNotEmpty) {
-      details.add(item.quantity!);
-    }
-
-    if (item.unit != null && item.unit!.isNotEmpty) {
-      details.add(item.unit!);
-    }
-
-    if (details.isEmpty) {
+    if (item.comment == null || item.comment!.isEmpty) {
       return null;
     }
 
-    return Text(details.join(' '));
+    return Text(item.comment!);
+  }
+
+  Widget _buildSuggestionsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          'Sugestie',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Najczęściej dodawane produkty',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _suggestions
+              .map(
+                (suggestion) => ActionChip(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.6),
+                  label: Text(
+                    suggestion.comment == null || suggestion.comment!.isEmpty
+                        ? suggestion.name
+                        : '${suggestion.name} • ${suggestion.comment}',
+                  ),
+                  onPressed: () => _addSuggestion(suggestion),
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
+    );
   }
 }
 
@@ -958,9 +1169,8 @@ class _ItemEditorDialog extends StatefulWidget {
 class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _quantityController;
-  late final TextEditingController _unitController;
   late bool _isChecked;
+  late final TextEditingController _commentController;
 
   @override
   void initState() {
@@ -968,11 +1178,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     _nameController = TextEditingController(
       text: widget.initialItem?.name ?? '',
     );
-    _quantityController = TextEditingController(
-      text: widget.initialItem?.quantity ?? '',
-    );
-    _unitController = TextEditingController(
-      text: widget.initialItem?.unit ?? '',
+    _commentController = TextEditingController(
+      text: widget.initialItem?.comment ?? '',
     );
     _isChecked = widget.initialItem?.isChecked ?? false;
   }
@@ -980,8 +1187,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _quantityController.dispose();
-    _unitController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -993,8 +1199,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     Navigator.of(context).pop(
       ItemDraft(
         name: _nameController.text.trim(),
-        quantity: _normalizedOptionalText(_quantityController.text),
-        unit: _normalizedOptionalText(_unitController.text),
+        comment: _normalizedOptionalText(_commentController.text),
+        quantity: widget.initialItem?.quantity ?? 1,
         isChecked: _isChecked,
       ),
     );
@@ -1015,7 +1221,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     final isEditing = widget.initialItem != null;
 
     return AlertDialog(
-      title: Text(isEditing ? 'Edit item' : 'Add item'),
+      title: Text(isEditing ? 'Edytuj produkt' : 'Dodaj produkt'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -1024,38 +1230,23 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: const InputDecoration(labelText: 'Nazwa'),
                 textInputAction: TextInputAction.next,
                 validator: (value) {
                   final trimmed = value?.trim() ?? '';
 
                   if (trimmed.isEmpty) {
-                    return 'Name is required';
+                    return 'Nazwa jest wymagana';
                   }
 
                   return null;
                 },
               ),
               TextFormField(
-                controller: _quantityController,
-                decoration: const InputDecoration(labelText: 'Quantity'),
-                textInputAction: TextInputAction.next,
-              ),
-              TextFormField(
-                controller: _unitController,
-                decoration: const InputDecoration(labelText: 'Unit'),
+                controller: _commentController,
+                decoration: const InputDecoration(labelText: 'Komentarz'),
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _submit(),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Checked'),
-                value: _isChecked,
-                onChanged: (value) {
-                  setState(() {
-                    _isChecked = value;
-                  });
-                },
               ),
             ],
           ),
@@ -1064,9 +1255,9 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Anuluj'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save')),
+        FilledButton(onPressed: _submit, child: const Text('Zapisz')),
       ],
     );
   }
@@ -1120,7 +1311,7 @@ class _ListNameDialogState extends State<_ListNameDialog> {
         child: TextFormField(
           controller: _controller,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'List name'),
+          decoration: const InputDecoration(labelText: 'Nazwa listy'),
           maxLength: 100,
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) => _submit(),
@@ -1128,11 +1319,11 @@ class _ListNameDialogState extends State<_ListNameDialog> {
             final trimmed = value?.trim() ?? '';
 
             if (trimmed.isEmpty) {
-              return 'List name is required';
+              return 'Nazwa listy jest wymagana';
             }
 
             if (trimmed.length > 100) {
-              return 'List name must be at most 100 characters';
+              return 'Nazwa listy może mieć maksymalnie 100 znaków';
             }
 
             return null;
@@ -1142,7 +1333,7 @@ class _ListNameDialogState extends State<_ListNameDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Anuluj'),
         ),
         FilledButton(
           onPressed: _submit,

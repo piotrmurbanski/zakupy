@@ -54,7 +54,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Weekly groceries'), findsWidgets);
-    expect(find.text('No items yet. Add the first one.'), findsOneWidget);
+    expect(find.text('Brak produktów. Dodaj pierwszy.'), findsOneWidget);
   });
 
   testWidgets('shows an empty state when the user has no visible lists', (
@@ -164,10 +164,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'User email'),
+      find.widgetWithText(TextFormField, 'Email użytkownika'),
       'second-user@example.com',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Udostępnij'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -218,10 +218,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'User email'),
+      find.widgetWithText(TextFormField, 'Email użytkownika'),
       'Second-User@example.com ',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Share'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Udostępnij'));
     await tester.pumpAndSettle();
 
     expect(
@@ -233,14 +233,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Recent emails'), findsOneWidget);
+    expect(find.text('Ostatnie adresy'), findsOneWidget);
     expect(find.text('second-user@example.com'), findsNWidgets(2));
 
     await tester.tap(find.byType(ActionChip));
     await tester.pump();
 
     final field = tester.widget<TextFormField>(
-      find.widgetWithText(TextFormField, 'User email'),
+      find.widgetWithText(TextFormField, 'Email użytkownika'),
     );
     expect(field.controller?.text, 'second-user@example.com');
   });
@@ -260,7 +260,7 @@ class _FakeApiClient extends ApiClient {
   final List<ShoppingListSummary> lists;
   final Object? listsError;
   final Future<List<ShoppingListSummary>> Function(int callCount)?
-  fetchListsHandler;
+      fetchListsHandler;
   final Future<ShareListResult> Function(String listId, String email)?
       shareListHandler;
 

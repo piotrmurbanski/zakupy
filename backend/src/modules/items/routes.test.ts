@@ -28,8 +28,8 @@ type TestItem = {
   id: string;
   listId: string;
   name: string;
-  quantity: string | null;
-  unit: string | null;
+  quantity: number;
+  comment: string | null;
   isChecked: boolean;
   sortOrder: number;
   createdByUserId: string;
@@ -43,6 +43,19 @@ type TestSession = {
   tokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
+  lastUsedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type TestSuggestion = {
+  id: string;
+  userId: string;
+  name: string;
+  normalizedName: string;
+  comment: string | null;
+  normalizedComment: string;
+  usageCount: number;
   lastUsedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -76,11 +89,27 @@ function buildItem(overrides: Partial<TestItem> = {}): TestItem {
     id: 'item_1',
     listId: 'list_1',
     name: 'Milk',
-    quantity: '2',
-    unit: 'l',
+    quantity: 2,
+    comment: '2%',
     isChecked: false,
     sortOrder: 0,
     createdByUserId: 'user_1',
+    createdAt: new Date('2026-03-29T10:00:00.000Z'),
+    updatedAt: new Date('2026-03-29T10:00:00.000Z'),
+    ...overrides
+  };
+}
+
+function buildSuggestion(overrides: Partial<TestSuggestion> = {}): TestSuggestion {
+  return {
+    id: 'suggestion_1',
+    userId: 'user_1',
+    name: 'Milk',
+    normalizedName: 'milk',
+    comment: '2%',
+    normalizedComment: '2%',
+    usageCount: 4,
+    lastUsedAt: new Date('2026-03-29T10:00:00.000Z'),
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
     updatedAt: new Date('2026-03-29T10:00:00.000Z'),
     ...overrides
@@ -91,6 +120,7 @@ async function buildApp(
   userById: Map<string, TestUser | undefined>,
   listsById: Map<string, TestList | undefined>,
   itemsById: Map<string, TestItem | undefined>,
+  suggestionsById: Map<string, TestSuggestion | undefined> = new Map(),
   sessions: TestSession[] = []
 ) {
   const app = Fastify();
@@ -143,6 +173,105 @@ async function buildApp(
         session.lastUsedAt = data.lastUsedAt ?? session.lastUsedAt;
         session.updatedAt = data.lastUsedAt ?? session.updatedAt;
         return session;
+      }
+    },
+    itemSuggestion: {
+      findMany: async ({
+        where,
+        take
+      }: {
+        where: { userId: string };
+        orderBy: Array<{ usageCount?: 'asc' | 'desc' } | { lastUsedAt?: 'asc' | 'desc' } | { name?: 'asc' | 'desc' }>;
+        take: number;
+      }) => {
+        const suggestions = [...suggestionsById.values()]
+          .filter((suggestion): suggestion is TestSuggestion => Boolean(suggestion && suggestion.userId === where.userId))
+          .sort((left, right) => {
+            if (right.usageCount != left.usageCount) {
+              return right.usageCount - left.usageCount;
+            }
+
+            if (right.lastUsedAt.getTime() != left.lastUsedAt.getTime()) {
+              return right.lastUsedAt.getTime() - left.lastUsedAt.getTime();
+            }
+
+            return left.name.localeCompare(right.name);
+          });
+
+        return suggestions.slice(0, take);
+      },
+      findFirst: async ({
+        where
+      }: {
+        where: { userId: string; normalizedName: string; normalizedComment: string };
+      }) => {
+        return (
+          [...suggestionsById.values()].find(
+            (suggestion) =>
+              suggestion?.userId === where.userId &&
+              suggestion.normalizedName === where.normalizedName &&
+              suggestion.normalizedComment === where.normalizedComment
+          ) ?? null
+        );
+      },
+      create: async ({
+        data
+      }: {
+        data: {
+          userId: string;
+          name: string;
+          normalizedName: string;
+          comment?: string | null;
+          normalizedComment?: string;
+          usageCount: number;
+          lastUsedAt: Date;
+        };
+      }) => {
+        const suggestion = buildSuggestion({
+          id: `suggestion_${suggestionsById.size + 1}`,
+          userId: data.userId,
+          name: data.name,
+          normalizedName: data.normalizedName,
+          comment: data.comment ?? null,
+          normalizedComment: data.normalizedComment ?? '',
+          usageCount: data.usageCount,
+          lastUsedAt: data.lastUsedAt,
+          createdAt: data.lastUsedAt,
+          updatedAt: data.lastUsedAt
+        });
+
+        suggestionsById.set(suggestion.id, suggestion);
+        return suggestion;
+      },
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: {
+          name?: string;
+          comment?: string | null;
+          usageCount?: { increment: number };
+          lastUsedAt?: Date;
+        };
+      }) => {
+        const suggestion = suggestionsById.get(where.id);
+
+        if (!suggestion) {
+          throw new Error('Suggestion not found');
+        }
+
+        const updatedSuggestion = {
+          ...suggestion,
+          name: data.name ?? suggestion.name,
+          comment: data.comment === undefined ? suggestion.comment : data.comment,
+          usageCount: suggestion.usageCount + (data.usageCount?.increment ?? 0),
+          lastUsedAt: data.lastUsedAt ?? suggestion.lastUsedAt,
+          updatedAt: data.lastUsedAt ?? suggestion.updatedAt
+        };
+
+        suggestionsById.set(where.id, updatedSuggestion);
+        return updatedSuggestion;
       }
     },
     shoppingList: {
@@ -205,8 +334,8 @@ async function buildApp(
         data: {
           listId: string;
           name: string;
-          quantity?: string | null;
-          unit?: string | null;
+          quantity: number;
+          comment?: string | null;
           isChecked: boolean;
           sortOrder: number;
           createdByUserId: string;
@@ -217,8 +346,8 @@ async function buildApp(
           id: `item_${itemsById.size + 1}`,
           listId: data.listId,
           name: data.name,
-          quantity: data.quantity ?? null,
-          unit: data.unit ?? null,
+          quantity: data.quantity,
+          comment: data.comment ?? null,
           isChecked: data.isChecked,
           sortOrder: data.sortOrder,
           createdByUserId: data.createdByUserId,
@@ -234,7 +363,7 @@ async function buildApp(
         data
       }: {
         where: { id: string };
-        data: { name?: string; quantity?: string | null; unit?: string | null; isChecked?: boolean };
+        data: { name?: string; quantity?: number; comment?: string | null; isChecked?: boolean };
       }) => {
         const item = itemsById.get(where.id);
 
@@ -246,7 +375,7 @@ async function buildApp(
           ...item,
           name: data.name ?? item.name,
           quantity: data.quantity === undefined ? item.quantity : data.quantity,
-          unit: data.unit === undefined ? item.unit : data.unit,
+          comment: data.comment === undefined ? item.comment : data.comment,
           isChecked: data.isChecked ?? item.isChecked,
           updatedAt: new Date('2026-03-30T10:00:00.000Z')
         };
@@ -290,6 +419,29 @@ function buildSessionToken(userId: string) {
   return { rawToken, session };
 }
 
+test('GET /items/suggestions returns ranked suggestions for the user', async () => {
+  const user = buildUser();
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id, name: 'Milk', usageCount: 10 })],
+    ['suggestion_2', buildSuggestion({ id: 'suggestion_2', userId: user.id, name: 'Batteries', usageCount: 2 })]
+  ]);
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/items/suggestions',
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Milk', 'Batteries']);
+  } finally {
+    await app.close();
+  }
+});
+
 test('GET /lists/:listId/items returns items visible to the user ordered by sortOrder', async () => {
   const user = buildUser();
   const list = buildList({ memberIds: new Set([user.id]) });
@@ -298,7 +450,7 @@ test('GET /lists/:listId/items returns items visible to the user ordered by sort
     ['item_2', buildItem({ id: 'item_2', listId: list.id, name: 'Butter', sortOrder: 1, createdByUserId: user.id })]
   ]);
   const { rawToken, session } = buildSessionToken(user.id);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, new Map(), [session]);
 
   try {
     const response = await app.inject({
@@ -321,19 +473,23 @@ test('POST /lists/:listId/items creates a new item for a visible list', async ()
     ['item_1', buildItem({ id: 'item_1', listId: list.id, sortOrder: 0, createdByUserId: user.id })]
   ]);
   const { rawToken, session } = buildSessionToken(user.id);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
+  const suggestions = new Map<string, TestSuggestion | undefined>();
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, suggestions, [session]);
 
   try {
     const response = await app.inject({
       method: 'POST',
       url: `/lists/${list.id}/items`,
       headers: { authorization: `Bearer ${rawToken}` },
-      payload: { name: '  Apples  ', quantity: ' 2 ', unit: ' kg ' }
+      payload: { name: '  Apples  ', quantity: 2, comment: ' kg ' }
     });
 
     assert.equal(response.statusCode, 201);
     assert.equal(response.json().item.name, 'Apples');
+    assert.equal(response.json().item.quantity, 2);
+    assert.equal(response.json().item.comment, 'kg');
     assert.equal(items.size, 2);
+    assert.equal([...suggestions.values()][0]?.usageCount, 2);
   } finally {
     await app.close();
   }
@@ -342,20 +498,31 @@ test('POST /lists/:listId/items creates a new item for a visible list', async ()
 test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
   const user = buildUser();
   const list = buildList({ memberIds: new Set([user.id]) });
-  const item = buildItem({ id: 'item_1', listId: list.id, name: 'Milk', quantity: '1', unit: 'l', isChecked: false, createdByUserId: user.id });
+  const item = buildItem({ id: 'item_1', listId: list.id, name: 'Milk', quantity: 1, comment: '2%', isChecked: false, createdByUserId: user.id });
   const { rawToken, session } = buildSessionToken(user.id);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map([[item.id, item]]), [session]);
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id, name: 'Milk', comment: '2%', normalizedComment: '2%', usageCount: 4 })]
+  ]);
+  const app = await buildApp(
+    new Map([[user.id, user]]),
+    new Map([[list.id, list]]),
+    new Map([[item.id, item]]),
+    suggestions,
+    [session]
+  );
 
   try {
     const response = await app.inject({
       method: 'PATCH',
       url: `/lists/${list.id}/items/${item.id}`,
       headers: { authorization: `Bearer ${rawToken}` },
-      payload: { name: 'Oat milk', isChecked: true }
+      payload: { name: 'Oat milk', quantity: 3, comment: 'Barista', isChecked: true }
     });
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().item.name, 'Oat milk');
+    assert.equal(response.json().item.quantity, 3);
+    assert.equal(response.json().item.comment, 'Barista');
     assert.equal(response.json().item.isChecked, true);
   } finally {
     await app.close();
@@ -368,7 +535,7 @@ test('DELETE /lists/:listId/items/:itemId removes the item', async () => {
   const item = buildItem({ id: 'item_1', listId: list.id, createdByUserId: user.id });
   const { rawToken, session } = buildSessionToken(user.id);
   const items = new Map<string, TestItem | undefined>([[item.id, item]]);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, [session]);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), items, new Map(), [session]);
 
   try {
     const response = await app.inject({
@@ -388,7 +555,7 @@ test('GET /lists/:listId/items returns 404 for a list the user cannot access', a
   const user = buildUser();
   const list = buildList({ ownerUserId: 'user_2', memberIds: new Set(['user_2']) });
   const { rawToken, session } = buildSessionToken(user.id);
-  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map(), [session]);
+  const app = await buildApp(new Map([[user.id, user]]), new Map([[list.id, list]]), new Map(), new Map(), [session]);
 
   try {
     const response = await app.inject({

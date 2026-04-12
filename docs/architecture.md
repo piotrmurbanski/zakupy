@@ -224,10 +224,22 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 - `list_id`
 - `name`
 - `quantity`
-- `unit`
+- `comment`
 - `is_checked`
 - `sort_order`
 - `created_by_user_id`
+- `created_at`
+- `updated_at`
+
+#### item_suggestions
+- `id`
+- `user_id`
+- `name`
+- `normalized_name`
+- `comment`
+- `normalized_comment`
+- `usage_count`
+- `last_used_at`
 - `created_at`
 - `updated_at`
 
@@ -327,6 +339,7 @@ Magic links can be added later, but the initial contract should assume numeric o
 - `DELETE /lists/:listId/members/:userId`
 
 #### items
+- `GET /items/suggestions`
 - `GET /lists/:listId/items`
 - `POST /lists/:listId/items`
 - `PATCH /lists/:listId/items/:itemId`

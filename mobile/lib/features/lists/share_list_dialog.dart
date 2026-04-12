@@ -198,7 +198,7 @@ class _ShareListDialogState extends State<_ShareListDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Share list'),
+      title: const Text('Udostępnij listę'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -210,7 +210,7 @@ class _ShareListDialogState extends State<_ShareListDialog> {
                 controller: _emailController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                  labelText: 'User email',
+                  labelText: 'Email użytkownika',
                   hintText: 'second-user@example.com',
                 ),
                 keyboardType: TextInputType.emailAddress,
@@ -220,13 +220,13 @@ class _ShareListDialogState extends State<_ShareListDialog> {
                   final trimmed = value?.trim() ?? '';
 
                   if (trimmed.isEmpty) {
-                    return 'Email is required';
+                    return 'Email jest wymagany';
                   }
 
                   final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
                   if (!emailPattern.hasMatch(trimmed)) {
-                    return 'Enter a valid email address';
+                    return 'Wpisz poprawny adres email';
                   }
 
                   return null;
@@ -240,7 +240,7 @@ class _ShareListDialogState extends State<_ShareListDialog> {
                 )
               else if (_recentEmails.isNotEmpty) ...[
                 Text(
-                  'Recent emails',
+                  'Ostatnie adresy',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
@@ -264,11 +264,11 @@ class _ShareListDialogState extends State<_ShareListDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Anuluj'),
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('Share'),
+          child: const Text('Udostępnij'),
         ),
       ],
     );

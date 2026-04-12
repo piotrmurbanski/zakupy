@@ -17,6 +17,7 @@ model User {
   archivedLists     ShoppingList[]   @relation("archived_lists")
   memberships       ListMember[]
   createdItems      ListItem[]
+  itemSuggestions   ItemSuggestion[]
   authSessions      AuthSession[]
   claimedInvites    ListInvitation[] @relation("claimed_invitations")
   sentInvitations   ListInvitation[] @relation("sent_invitations")
@@ -109,8 +110,8 @@ model ListItem {
   id              String       @id @default(cuid())
   listId          String       @map("list_id")
   name            String
-  quantity        String?
-  unit            String?
+  quantity        Int          @default(1)
+  comment         String?
   isChecked       Boolean      @default(false) @map("is_checked")
   sortOrder       Int          @default(0) @map("sort_order")
   createdByUserId String       @map("created_by_user_id")
@@ -120,6 +121,24 @@ model ListItem {
   createdByUser   User         @relation(fields: [createdByUserId], references: [id])
 
   @@map("list_items")
+}
+
+model ItemSuggestion {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  name              String
+  normalizedName    String   @map("normalized_name")
+  comment           String?
+  normalizedComment String   @default("") @map("normalized_comment")
+  usageCount        Int      @default(1) @map("usage_count")
+  lastUsedAt        DateTime @default(now()) @map("last_used_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, normalizedName, normalizedComment])
+  @@index([userId, usageCount, lastUsedAt])
+  @@map("item_suggestions")
 }
 
 enum ListRole {

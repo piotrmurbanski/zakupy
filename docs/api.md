@@ -367,8 +367,8 @@ Response:
       "id": "item_id",
       "listId": "list_id",
       "name": "Milk",
-      "quantity": "2",
-      "unit": "l",
+      "quantity": 2,
+      "comment": "2%",
       "isChecked": false,
       "sortOrder": 0,
       "createdByUserId": "user_id",
@@ -392,8 +392,8 @@ Request body:
 ```json
 {
   "name": "Milk",
-  "quantity": "2",
-  "unit": "l"
+  "quantity": 2,
+  "comment": "2%"
 }
 ```
 
@@ -405,8 +405,8 @@ Response:
     "id": "item_id",
     "listId": "list_id",
     "name": "Milk",
-    "quantity": "2",
-    "unit": "l",
+    "quantity": 2,
+    "comment": "2%",
     "isChecked": false,
     "sortOrder": 0,
     "createdByUserId": "user_id",
@@ -418,7 +418,8 @@ Response:
 
 Notes:
 - the item is created with the next `sortOrder` value on the server
-- `quantity` and `unit` are optional
+- `quantity` defaults to `1`
+- `comment` is optional
 
 ### `PATCH /lists/:listId/items/:itemId`
 
@@ -433,8 +434,8 @@ Request body:
 ```json
 {
   "name": "Oat milk",
-  "quantity": "2",
-  "unit": "l",
+  "quantity": 3,
+  "comment": "Barista",
   "isChecked": true
 }
 ```
@@ -447,8 +448,8 @@ Response:
     "id": "item_id",
     "listId": "list_id",
     "name": "Oat milk",
-    "quantity": "2",
-    "unit": "l",
+    "quantity": 3,
+    "comment": "Barista",
     "isChecked": true,
     "sortOrder": 0,
     "createdByUserId": "user_id",
@@ -461,6 +462,34 @@ Response:
 Notes:
 - send only the fields you want to change
 - empty update bodies return `400 Bad Request`
+
+### `GET /items/suggestions`
+
+Headers:
+
+```http
+Authorization: Bearer jwt-token
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "suggestion_id",
+      "name": "Milk",
+      "comment": "2%",
+      "usageCount": 12,
+      "lastUsedAt": "2026-04-11T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+Notes:
+- suggestions are ranked by `usageCount`, then by most recent use
+- usage is updated when a user creates an item or increases its quantity
 
 ### `DELETE /lists/:listId/items/:itemId`
 

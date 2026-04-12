@@ -9,8 +9,8 @@ type ItemResponse = {
   id: string;
   listId: string;
   name: string;
-  quantity: string | null;
-  unit: string | null;
+  quantity: number;
+  comment: string | null;
   isChecked: boolean;
   sortOrder: number;
   createdByUserId: string;
@@ -22,11 +22,32 @@ type ItemRecord = {
   id: string;
   listId: string;
   name: string;
-  quantity: string | null;
-  unit: string | null;
+  quantity: number;
+  comment: string | null;
   isChecked: boolean;
   sortOrder: number;
   createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ItemSuggestionResponse = {
+  id: string;
+  name: string;
+  comment: string | null;
+  usageCount: number;
+  lastUsedAt: Date;
+};
+
+type ItemSuggestionRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  normalizedName: string;
+  comment: string | null;
+  normalizedComment: string;
+  usageCount: number;
+  lastUsedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -52,8 +73,8 @@ type ItemRepository = {
     data: {
       listId: string;
       name: string;
-      quantity?: string | null;
-      unit?: string | null;
+      quantity: number;
+      comment?: string | null;
       isChecked: boolean;
       sortOrder: number;
       createdByUserId: string;
@@ -63,8 +84,8 @@ type ItemRepository = {
     where: { id: string };
     data: {
       name?: string;
-      quantity?: string | null;
-      unit?: string | null;
+      quantity?: number;
+      comment?: string | null;
       isChecked?: boolean;
     };
   }): Promise<ItemRecord>;
@@ -118,6 +139,40 @@ type AuthSessionRepository = {
 type ItemRoutesDeps = {
   prisma: {
     listItem: ItemRepository;
+    itemSuggestion: {
+      findMany(args: {
+        where: { userId: string };
+        orderBy: Array<{ usageCount?: 'asc' | 'desc' } | { lastUsedAt?: 'asc' | 'desc' } | { name?: 'asc' | 'desc' }>;
+        take: number;
+      }): Promise<ItemSuggestionRecord[]>;
+      findFirst(args: {
+        where: {
+          userId: string;
+          normalizedName: string;
+          normalizedComment: string;
+        };
+      }): Promise<ItemSuggestionRecord | null>;
+      create(args: {
+        data: {
+          userId: string;
+          name: string;
+          normalizedName: string;
+          comment?: string | null;
+          normalizedComment?: string;
+          usageCount: number;
+          lastUsedAt: Date;
+        };
+      }): Promise<ItemSuggestionRecord>;
+      update(args: {
+        where: { id: string };
+        data: {
+          name?: string;
+          comment?: string | null;
+          usageCount?: { increment: number };
+          lastUsedAt?: Date;
+        };
+      }): Promise<ItemSuggestionRecord>;
+    };
     shoppingList: ListRepository;
     user: UserRepository;
     authSession: AuthSessionRepository;
@@ -126,14 +181,14 @@ type ItemRoutesDeps = {
 
 const itemBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
-  quantity: z.union([z.string().trim().min(1).max(50), z.null()]).optional(),
-  unit: z.union([z.string().trim().min(1).max(50), z.null()]).optional()
+  quantity: z.coerce.number().int().min(1).max(999).optional(),
+  comment: z.union([z.string().trim().min(1).max(140), z.null()]).optional()
 });
 
 const updateItemBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
-  quantity: z.union([z.string().trim().min(1).max(50), z.null()]).optional(),
-  unit: z.union([z.string().trim().min(1).max(50), z.null()]).optional(),
+  quantity: z.coerce.number().int().min(1).max(999).optional(),
+  comment: z.union([z.string().trim().min(1).max(140), z.null()]).optional(),
   isChecked: z.boolean().optional()
 });
 
@@ -148,7 +203,7 @@ function toItemResponse(
     | 'listId'
     | 'name'
     | 'quantity'
-    | 'unit'
+    | 'comment'
     | 'isChecked'
     | 'sortOrder'
     | 'createdByUserId'
@@ -161,12 +216,22 @@ function toItemResponse(
     listId: item.listId,
     name: item.name,
     quantity: item.quantity,
-    unit: item.unit,
+    comment: item.comment,
     isChecked: item.isChecked,
     sortOrder: item.sortOrder,
     createdByUserId: item.createdByUserId,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt
+  };
+}
+
+function toSuggestionResponse(suggestion: ItemSuggestionRecord): ItemSuggestionResponse {
+  return {
+    id: suggestion.id,
+    name: suggestion.name,
+    comment: suggestion.comment,
+    usageCount: suggestion.usageCount,
+    lastUsedAt: suggestion.lastUsedAt
   };
 }
 
@@ -232,8 +297,96 @@ async function getNextSortOrder(deps: ItemRoutesDeps, listId: string) {
   return (latestItem?.sortOrder ?? -1) + 1;
 }
 
+function normalizeSuggestionPart(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length == 0 ? null : trimmed.toLowerCase();
+}
+
+async function recordSuggestionUsage(
+  deps: ItemRoutesDeps,
+  userId: string,
+  {
+    name,
+    comment,
+    incrementBy
+  }: {
+    name: string;
+    comment?: string | null;
+    incrementBy: number;
+  }
+) {
+  if (incrementBy <= 0) {
+    return;
+  }
+
+  const normalizedName = normalizeSuggestionPart(name);
+  const normalizedComment = normalizeSuggestionPart(comment) ?? '';
+
+  if (normalizedName == null) {
+    return;
+  }
+
+  const now = new Date();
+  const existingSuggestion = await deps.prisma.itemSuggestion.findFirst({
+    where: {
+      userId,
+      normalizedName,
+      normalizedComment
+    }
+  });
+
+  if (existingSuggestion) {
+    await deps.prisma.itemSuggestion.update({
+      where: {
+        id: existingSuggestion.id
+      },
+      data: {
+        name: name.trim(),
+        comment: comment?.trim() ?? null,
+        usageCount: {
+          increment: incrementBy
+        },
+        lastUsedAt: now
+      }
+    });
+    return;
+  }
+
+  await deps.prisma.itemSuggestion.create({
+    data: {
+      userId,
+      name: name.trim(),
+      normalizedName,
+      comment: comment?.trim() ?? null,
+      normalizedComment,
+      usageCount: incrementBy,
+      lastUsedAt: now
+    }
+  });
+}
+
 export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
+    app.get('/items/suggestions', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const suggestions = await deps.prisma.itemSuggestion.findMany({
+        where: {
+          userId: user.id
+        },
+        orderBy: [{ usageCount: 'desc' }, { lastUsedAt: 'desc' }, { name: 'asc' }],
+        take: 12
+      });
+
+      return {
+        items: suggestions.map(toSuggestionResponse)
+      };
+    });
+
     app.get('/lists/:listId/items', async (request, reply) => {
       const user = await authenticateRequest(deps.prisma, request, reply);
 
@@ -287,12 +440,18 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
         data: {
           listId,
           name: body.name,
-          quantity: body.quantity ?? null,
-          unit: body.unit ?? null,
+          quantity: body.quantity ?? 1,
+          comment: body.comment ?? null,
           isChecked: false,
           sortOrder,
           createdByUserId: user.id
         }
+      });
+
+      await recordSuggestionUsage(deps, user.id, {
+        name: item.name,
+        comment: item.comment,
+        incrementBy: item.quantity
       });
 
       return reply.code(201).send({
@@ -330,6 +489,10 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
         return reply.notFound('Item not found');
       }
 
+      const nextName = body.name ?? existingItem.name;
+      const nextComment = body.comment === undefined ? existingItem.comment : body.comment;
+      const nextQuantity = body.quantity ?? existingItem.quantity;
+
       const item = await deps.prisma.listItem.update({
         where: {
           id: existingItem.id
@@ -337,9 +500,15 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
         data: {
           name: body.name,
           quantity: body.quantity,
-          unit: body.unit,
+          comment: body.comment,
           isChecked: body.isChecked
         }
+      });
+
+      await recordSuggestionUsage(deps, user.id, {
+        name: nextName,
+        comment: nextComment,
+        incrementBy: Math.max(nextQuantity - existingItem.quantity, 0)
       });
 
       return {
