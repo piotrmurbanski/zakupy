@@ -1,4 +1,4 @@
-# Zakupy MVP Plan
+# Listek MVP Plan
 
 ## Goal
 

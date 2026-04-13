@@ -21,12 +21,12 @@ class ZakupyLogo extends StatelessWidget {
           colors: [Color(0xFF15171C), Color(0xFF050608)],
         ),
         border: Border.all(
-          color: const Color(0xFF8BC3FF).withValues(alpha: 0.18),
+          color: const Color(0xFF5EE0A2).withValues(alpha: 0.18),
         ),
         boxShadow: [
           BoxShadow(
             color: showGlow
-                ? const Color(0xFF0A84FF).withValues(alpha: 0.22)
+                ? const Color(0xFF10B96B).withValues(alpha: 0.22)
                 : Colors.black.withValues(alpha: 0.14),
             blurRadius: size * 0.18,
             offset: Offset(0, size * 0.08),
@@ -58,12 +58,12 @@ class _ZakupyLogoPainter extends CustomPainter {
       ..shader = const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF081126), Color(0xFF15265A)],
+        colors: [Color(0xFF071712), Color(0xFF0D372C)],
       ).createShader(panelRect);
     canvas.drawRRect(panel, panelPaint);
 
     final panelStroke = Paint()
-      ..color = const Color(0xFF234A97)
+      ..color = const Color(0xFF17694F)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.03;
     canvas.drawRRect(panel.deflate(size.width * 0.012), panelStroke);
@@ -73,7 +73,7 @@ class _ZakupyLogoPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeWidth = size.width * 0.05;
     final blueStrokePaint = Paint()
-      ..color = const Color(0xFF2290FF)
+      ..color = const Color(0xFF23D88A)
       ..strokeCap = StrokeCap.round
       ..strokeWidth = size.width * 0.04
       ..style = PaintingStyle.stroke
@@ -83,7 +83,7 @@ class _ZakupyLogoPainter extends CustomPainter {
       ..shader = const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF2E97FF), Color(0xFF197BEB)],
+        colors: [Color(0xFF2BE39A), Color(0xFF0FA35F)],
       ).createShader(panelRect);
 
     final left = size.width * 0.24;

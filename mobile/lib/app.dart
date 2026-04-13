@@ -51,7 +51,7 @@ class _ZakupyAppState extends State<ZakupyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Zakupy',
+      title: 'Listek',
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
       themeMode: _themeMode,

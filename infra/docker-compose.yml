@@ -34,7 +34,7 @@ services:
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_FROM: ${SMTP_FROM:-Zakupy <no-reply@zakupy.local>}
+      SMTP_FROM: ${SMTP_FROM:-Listek <no-reply@zakupy.local>}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     healthcheck:

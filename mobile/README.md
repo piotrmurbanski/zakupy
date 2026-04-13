@@ -1,6 +1,6 @@
 # Mobile
 
-Starter struktury aplikacji Flutter dla Zakupy.
+Starter struktury aplikacji Flutter dla Listek.
 
 ## Status
 

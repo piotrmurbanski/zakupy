@@ -136,7 +136,7 @@ class _AuthPageState extends State<AuthPage> {
           children: [
             ZakupyLogo(size: 30, showGlow: false),
             SizedBox(width: 12),
-            Text('Zakupy'),
+            Text('Listek'),
           ],
         ),
         actions: [
@@ -175,7 +175,7 @@ class _AuthPageState extends State<AuthPage> {
                         children: [
                           const Center(child: ZakupyLogo(size: 92)),
                           const SizedBox(height: 20),
-                          Text('Zakupy', style: theme.textTheme.headlineMedium),
+                          Text('Listek', style: theme.textTheme.headlineMedium),
                           const SizedBox(height: 8),
                           Text(
                             isRequestStep
@@ -193,7 +193,7 @@ class _AuthPageState extends State<AuthPage> {
                             controller: _baseUrlController,
                             decoration: const InputDecoration(
                               labelText: 'API base URL',
-                              hintText: 'https://zakupy.your-tailnet.ts.net',
+                              hintText: 'https://listek.your-tailnet.ts.net',
                             ),
                             keyboardType: TextInputType.url,
                             enabled: !widget.isSubmitting,
@@ -209,7 +209,7 @@ class _AuthPageState extends State<AuthPage> {
                               if (uri == null ||
                                   !uri.hasScheme ||
                                   uri.host.isEmpty) {
-                                return 'Enter a valid URL, for example https://zakupy.your-tailnet.ts.net';
+                                return 'Enter a valid URL, for example https://listek.your-tailnet.ts.net';
                               }
 
                               return null;

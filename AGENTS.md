@@ -1,4 +1,4 @@
-# Zakupy Project Guidelines
+# Listek Project Guidelines
 
 ## Project goal
 - Build a private shopping-list app for two users first.

@@ -51,10 +51,10 @@ export function createMailer(): Mailer {
       await transporter.sendMail({
         from,
         to: email,
-        subject: 'Zakupy sign-in code',
-        text: `Your Zakupy sign-in code is: ${code}`,
+        subject: 'Listek sign-in code',
+        text: `Your Listek sign-in code is: ${code}`,
         html: buildHtmlParagraphs([
-          'Your Zakupy sign-in code is:',
+          'Your Listek sign-in code is:',
           `<strong>${code}</strong>`,
         ]),
       });

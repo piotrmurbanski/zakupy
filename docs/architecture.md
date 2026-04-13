@@ -1,8 +1,8 @@
-# Zakupy Architecture
+# Listek Architecture
 
 ## Overview
 
-Zakupy starts as a private family shopping-list app for two users:
+Listek starts as a private family shopping-list app for two users:
 - one Android phone
 - one iPhone
 - one backend running on a home VM
