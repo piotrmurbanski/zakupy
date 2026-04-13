@@ -1,32 +1,27 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="panel" x1="245" y1="235" x2="780" y2="790" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0A1125"/>
-      <stop offset="1" stop-color="#142456"/>
-    </linearGradient>
     <linearGradient id="accent" x1="286" y1="308" x2="542" y2="668" gradientUnits="userSpaceOnUse">
       <stop stop-color="#2E97FF"/>
       <stop offset="1" stop-color="#197BEB"/>
     </linearGradient>
   </defs>
 
-  <rect width="1024" height="1024" fill="#0B0E14"/>
+  <rect width="1024" height="1024" fill="#000000"/>
 
-  <rect x="213" y="223" width="570" height="546" rx="123" fill="url(#panel)"/>
-  <rect x="219" y="229" width="558" height="534" rx="117" stroke="#234A97" stroke-width="12"/>
+  <g transform="translate(512 512) scale(1.32) translate(-512 -512)">
+    <path d="M306 326H352C367.463 326 380.827 336.737 384.153 351.838L421 519H355.5L382.5 470.5C386.226 463.809 387.404 455.999 385.825 448.523L346.5 362H306C294.954 362 286 353.046 286 342C286 330.954 294.954 322 306 322V326Z" fill="url(#accent)"/>
+    <path d="M426 356H338.5C327.454 356 318.5 347.046 318.5 336C318.5 324.954 327.454 316 338.5 316H414C425.046 316 434 324.954 434 336V356H426Z" fill="url(#accent)"/>
+    <path d="M416 517H507V586H380C358.461 586 341 568.539 341 547C341 539.338 343.25 531.844 347.47 525.448L389.5 462L416 517Z" fill="url(#accent)"/>
+    <path d="M382 586H507V609H382C369.297 609 359 598.703 359 586C359 573.297 369.297 563 382 563V586Z" fill="url(#accent)"/>
+    <circle cx="390" cy="646" r="30" fill="url(#accent)"/>
+    <circle cx="510" cy="646" r="30" fill="url(#accent)"/>
 
-  <path d="M306 326H352C367.463 326 380.827 336.737 384.153 351.838L421 519H355.5L382.5 470.5C386.226 463.809 387.404 455.999 385.825 448.523L346.5 362H306C294.954 362 286 353.046 286 342C286 330.954 294.954 322 306 322V326Z" fill="url(#accent)"/>
-  <path d="M426 356H338.5C327.454 356 318.5 347.046 318.5 336C318.5 324.954 327.454 316 338.5 316H414C425.046 316 434 324.954 434 336V356H426Z" fill="url(#accent)"/>
-  <path d="M416 517H507V586H380C358.461 586 341 568.539 341 547C341 539.338 343.25 531.844 347.47 525.448L389.5 462L416 517Z" fill="url(#accent)"/>
-  <path d="M382 586H507V609H382C369.297 609 359 598.703 359 586C359 573.297 369.297 563 382 563V586Z" fill="url(#accent)"/>
-  <circle cx="390" cy="646" r="30" fill="url(#accent)"/>
-  <circle cx="510" cy="646" r="30" fill="url(#accent)"/>
+    <path d="M569 390L594 416L643 352" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M569 482L594 508L643 444" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M569 574L594 600L643 536" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <path d="M569 390L594 416L643 352" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M569 482L594 508L643 444" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M569 574L594 600L643 536" stroke="#2290FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <line x1="702" y1="390" x2="512" y2="390" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
-  <line x1="702" y1="482" x2="512" y2="482" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
-  <line x1="702" y1="574" x2="512" y2="574" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
+    <line x1="702" y1="390" x2="512" y2="390" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
+    <line x1="702" y1="482" x2="512" y2="482" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
+    <line x1="702" y1="574" x2="512" y2="574" stroke="#F4F6FA" stroke-width="28" stroke-linecap="round"/>
+  </g>
 </svg>
