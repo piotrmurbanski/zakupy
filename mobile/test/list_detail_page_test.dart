@@ -435,6 +435,7 @@ void main() {
           id: 'suggestion_milk',
           name: 'Milk',
           comment: '2%',
+          iconKey: 'eggs',
           usageCount: 12,
           lastUsedAt: DateTime.utc(2026, 4, 10, 12),
         ),
@@ -449,6 +450,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(apiClient.createItemCalls, 1);
+    expect(apiClient.lastCreatedDraft?.iconKey, 'eggs');
     expect(find.text('Milk'), findsOneWidget);
   });
 
@@ -581,6 +583,7 @@ class _FakeApiClient extends ApiClient {
   int shareListCalls = 0;
   int updateListCalls = 0;
   int archiveListCalls = 0;
+  ItemDraft? lastCreatedDraft;
   ItemDraft? lastUpdatedDraft;
 
   @override
@@ -603,6 +606,7 @@ class _FakeApiClient extends ApiClient {
   @override
   Future<ShoppingListItem> createItem(String listId, ItemDraft draft) async {
     createItemCalls += 1;
+    lastCreatedDraft = draft;
 
     if (createItemHandler != null) {
       return createItemHandler!(listId, draft);
@@ -614,6 +618,7 @@ class _FakeApiClient extends ApiClient {
       comment: draft.comment,
       quantity: draft.quantity,
       isChecked: draft.isChecked,
+      iconKey: draft.iconKey,
       sortOrder: items.length,
     );
     items.add(createdItem);
@@ -638,6 +643,7 @@ class _FakeApiClient extends ApiClient {
       comment: draft.comment,
       quantity: draft.quantity,
       isChecked: draft.isChecked,
+      iconKey: draft.iconKey,
     );
     items[index] = updatedItem;
     return updatedItem;

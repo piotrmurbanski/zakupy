@@ -132,6 +132,7 @@ model ItemSuggestion {
   normalizedName    String   @map("normalized_name")
   comment           String?
   normalizedComment String   @default("") @map("normalized_comment")
+  iconKey           String   @default("default") @map("icon_key")
   usageCount        Int      @default(1) @map("usage_count")
   lastUsedAt        DateTime @default(now()) @map("last_used_at")
   createdAt         DateTime @default(now()) @map("created_at")

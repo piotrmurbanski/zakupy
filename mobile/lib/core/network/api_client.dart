@@ -583,6 +583,7 @@ class ItemSuggestion {
     required this.comment,
     required this.usageCount,
     required this.lastUsedAt,
+    this.iconKey = defaultItemIconKey,
   });
 
   final String id;
@@ -590,6 +591,7 @@ class ItemSuggestion {
   final String? comment;
   final int usageCount;
   final DateTime lastUsedAt;
+  final String iconKey;
 
   factory ItemSuggestion.fromJson(Map<String, dynamic> json) {
     return ItemSuggestion(
@@ -598,6 +600,7 @@ class ItemSuggestion {
       comment: json['comment'] as String?,
       usageCount: json['usageCount'] as int? ?? 0,
       lastUsedAt: DateTime.parse(json['lastUsedAt'] as String),
+      iconKey: json['iconKey'] as String? ?? defaultItemIconKey,
     );
   }
 }

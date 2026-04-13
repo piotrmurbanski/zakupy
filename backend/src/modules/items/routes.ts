@@ -37,6 +37,7 @@ type ItemSuggestionResponse = {
   id: string;
   name: string;
   comment: string | null;
+  iconKey: string;
   usageCount: number;
   lastUsedAt: Date;
 };
@@ -48,6 +49,7 @@ type ItemSuggestionRecord = {
   normalizedName: string;
   comment: string | null;
   normalizedComment: string;
+  iconKey: string;
   usageCount: number;
   lastUsedAt: Date;
   createdAt: Date;
@@ -163,6 +165,7 @@ type ItemRoutesDeps = {
           normalizedName: string;
           comment?: string | null;
           normalizedComment?: string;
+          iconKey: string;
           usageCount: number;
           lastUsedAt: Date;
         };
@@ -172,6 +175,7 @@ type ItemRoutesDeps = {
         data: {
           name?: string;
           comment?: string | null;
+          iconKey?: string;
           usageCount?: { increment: number };
           lastUsedAt?: Date;
         };
@@ -238,6 +242,7 @@ function toSuggestionResponse(suggestion: ItemSuggestionRecord): ItemSuggestionR
     id: suggestion.id,
     name: suggestion.name,
     comment: suggestion.comment,
+    iconKey: suggestion.iconKey,
     usageCount: suggestion.usageCount,
     lastUsedAt: suggestion.lastUsedAt
   };
@@ -316,17 +321,15 @@ async function recordSuggestionUsage(
   {
     name,
     comment,
+    iconKey,
     incrementBy
   }: {
     name: string;
     comment?: string | null;
+    iconKey: string;
     incrementBy: number;
   }
 ) {
-  if (incrementBy <= 0) {
-    return;
-  }
-
   const normalizedName = normalizeSuggestionPart(name);
   const normalizedComment = normalizeSuggestionPart(comment) ?? '';
 
@@ -351,12 +354,23 @@ async function recordSuggestionUsage(
       data: {
         name: name.trim(),
         comment: comment?.trim() ?? null,
-        usageCount: {
-          increment: incrementBy
-        },
-        lastUsedAt: now
+        iconKey,
+        ...(incrementBy > 0
+          ? {
+              usageCount: {
+                increment: incrementBy
+              },
+              lastUsedAt: now
+            }
+          : {
+              lastUsedAt: now
+            })
       }
     });
+    return;
+  }
+
+  if (incrementBy <= 0) {
     return;
   }
 
@@ -367,6 +381,7 @@ async function recordSuggestionUsage(
       normalizedName,
       comment: comment?.trim() ?? null,
       normalizedComment,
+      iconKey,
       usageCount: incrementBy,
       lastUsedAt: now
     }
@@ -460,6 +475,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
       await recordSuggestionUsage(deps, user.id, {
         name: item.name,
         comment: item.comment,
+        iconKey: item.iconKey,
         incrementBy: item.quantity
       });
 
@@ -518,6 +534,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
       await recordSuggestionUsage(deps, user.id, {
         name: nextName,
         comment: nextComment,
+        iconKey: item.iconKey,
         incrementBy: Math.max(nextQuantity - existingItem.quantity, 0)
       });
 

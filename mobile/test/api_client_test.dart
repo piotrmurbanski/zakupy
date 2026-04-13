@@ -96,6 +96,19 @@ void main() {
     expect(item.iconKey, defaultItemIconKey);
   });
 
+  test('ItemSuggestion.fromJson parses icon keys', () {
+    final suggestion = ItemSuggestion.fromJson({
+      'id': 'suggestion_1',
+      'name': 'Bread',
+      'comment': null,
+      'usageCount': 5,
+      'lastUsedAt': '2026-04-10T12:00:00.000Z',
+      'iconKey': 'bread',
+    });
+
+    expect(suggestion.iconKey, 'bread');
+  });
+
   test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields',
       () {
     final item = ShoppingListItem(

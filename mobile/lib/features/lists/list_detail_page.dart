@@ -7,6 +7,37 @@ import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
 import 'share_list_dialog.dart';
 
+String? _suggestedIconKeyForProduct({
+  required Iterable<ItemSuggestion> suggestions,
+  required String name,
+  required String? comment,
+}) {
+  final normalizedName = name.trim().toLowerCase();
+  if (normalizedName.isEmpty) {
+    return null;
+  }
+
+  final normalizedComment = comment?.trim().toLowerCase() ?? '';
+  final exactMatch = suggestions.where((suggestion) {
+    final suggestionName = suggestion.name.trim().toLowerCase();
+    final suggestionComment = suggestion.comment?.trim().toLowerCase() ?? '';
+    return suggestionName == normalizedName &&
+        suggestionComment == normalizedComment;
+  });
+
+  if (exactMatch.isNotEmpty) {
+    return exactMatch.first.iconKey;
+  }
+
+  for (final suggestion in suggestions) {
+    if (suggestion.name.trim().toLowerCase() == normalizedName) {
+      return suggestion.iconKey;
+    }
+  }
+
+  return null;
+}
+
 class ListDetailPage extends StatefulWidget {
   const ListDetailPage({
     required this.apiClient,
@@ -218,7 +249,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final draft = await showDialog<ItemDraft>(
       context: context,
       builder: (context) {
-        return const _ItemEditorDialog();
+        return _ItemEditorDialog(suggestions: _suggestions);
       },
     );
 
@@ -233,7 +264,10 @@ class _ListDetailPageState extends State<ListDetailPage> {
     final draft = await showDialog<ItemDraft>(
       context: context,
       builder: (context) {
-        return _ItemEditorDialog(initialItem: item);
+        return _ItemEditorDialog(
+          initialItem: item,
+          suggestions: _suggestions,
+        );
       },
     );
 
@@ -394,6 +428,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   Future<void> _changeQuantity(ShoppingListItem item, int delta) async {
+    await _updateQuantity(item, delta);
+  }
+
+  Future<void> _updateQuantity(
+    ShoppingListItem item,
+    int delta, {
+    String? iconKey,
+  }) async {
     final existingIndex = _items.indexWhere((entry) => entry.id == item.id);
     if (existingIndex == -1) {
       return;
@@ -405,10 +447,15 @@ class _ListDetailPageState extends State<ListDetailPage> {
       return;
     }
 
+    final nextIconKey = iconKey ?? previousItem.iconKey;
     final optimisticDraft = previousItem.toDraft().copyWith(
           quantity: nextQuantity,
+          iconKey: nextIconKey,
         );
-    final optimisticItem = previousItem.copyWith(quantity: nextQuantity);
+    final optimisticItem = previousItem.copyWith(
+      quantity: nextQuantity,
+      iconKey: nextIconKey,
+    );
 
     setState(() {
       _didMutateList = true;
@@ -490,7 +537,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
 
     if (existingItem != null) {
-      await _changeQuantity(existingItem, 1);
+      await _updateQuantity(
+        existingItem,
+        1,
+        iconKey: suggestion.iconKey,
+      );
       return;
     }
 
@@ -499,6 +550,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         name: suggestion.name,
         comment: suggestion.comment,
         quantity: 1,
+        iconKey: suggestion.iconKey,
       ),
     );
   }
@@ -868,22 +920,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
               ),
               Tooltip(
                 message: iconOption.label,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    iconOption.icon,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    size: 20,
-                  ),
-                ),
+                child: buildItemIconBadge(iconOption),
               ),
             ],
           ),
@@ -1081,22 +1118,27 @@ class _ListDetailPageState extends State<ListDetailPage> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _suggestions
-              .map(
-                (suggestion) => ActionChip(
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.6),
-                  label: Text(
-                    suggestion.comment == null || suggestion.comment!.isEmpty
-                        ? suggestion.name
-                        : '${suggestion.name} • ${suggestion.comment}',
-                  ),
-                  onPressed: () => _addSuggestion(suggestion),
+          children: _suggestions.map(
+            (suggestion) {
+              final iconOption = itemIconOptionForKey(suggestion.iconKey);
+              return ActionChip(
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.6),
+                avatar: Tooltip(
+                  message: iconOption.label,
+                  child: buildItemIconBadge(iconOption, size: 24),
                 ),
-              )
-              .toList(growable: false),
+                label: Text(
+                  suggestion.comment == null || suggestion.comment!.isEmpty
+                      ? suggestion.name
+                      : '${suggestion.name} • ${suggestion.comment}',
+                ),
+                onPressed: () => _addSuggestion(suggestion),
+              );
+            },
+          ).toList(growable: false),
         ),
       ],
     );
@@ -1149,9 +1191,13 @@ class _PendingItemMutation {
 }
 
 class _ItemEditorDialog extends StatefulWidget {
-  const _ItemEditorDialog({this.initialItem});
+  const _ItemEditorDialog({
+    this.initialItem,
+    required this.suggestions,
+  });
 
   final ShoppingListItem? initialItem;
+  final List<ItemSuggestion> suggestions;
 
   @override
   State<_ItemEditorDialog> createState() => _ItemEditorDialogState();
@@ -1164,6 +1210,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   late final TextEditingController _commentController;
   late int _quantity;
   late String _iconKey;
+  bool _iconKeyWasManuallySelected = false;
 
   @override
   void initState() {
@@ -1174,6 +1221,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     _commentController = TextEditingController(
       text: widget.initialItem?.comment ?? '',
     );
+    _nameController.addListener(_maybeSyncSuggestedIcon);
+    _commentController.addListener(_maybeSyncSuggestedIcon);
     _isChecked = widget.initialItem?.isChecked ?? false;
     _quantity = widget.initialItem?.quantity ?? 1;
     _iconKey = widget.initialItem?.iconKey ?? defaultItemIconKey;
@@ -1181,9 +1230,32 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
 
   @override
   void dispose() {
+    _nameController.removeListener(_maybeSyncSuggestedIcon);
+    _commentController.removeListener(_maybeSyncSuggestedIcon);
     _nameController.dispose();
     _commentController.dispose();
     super.dispose();
+  }
+
+  void _maybeSyncSuggestedIcon() {
+    if (_iconKeyWasManuallySelected) {
+      return;
+    }
+
+    final nextIconKey = _suggestedIconKeyForProduct(
+          suggestions: widget.suggestions,
+          name: _nameController.text,
+          comment: _commentController.text,
+        ) ??
+        defaultItemIconKey;
+
+    if (nextIconKey == _iconKey) {
+      return;
+    }
+
+    setState(() {
+      _iconKey = nextIconKey;
+    });
   }
 
   void _submit() {
@@ -1226,7 +1298,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(option.icon),
+                      buildItemIconBadge(option, size: 28),
                       const SizedBox(width: 12),
                       Expanded(child: Text(option.label)),
                     ],
@@ -1244,6 +1316,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
 
     setState(() {
       _iconKey = selectedKey;
+      _iconKeyWasManuallySelected = true;
     });
   }
 
@@ -1315,7 +1388,8 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _pickIcon,
-                icon: Icon(itemIconOptionForKey(_iconKey).icon),
+                icon: buildItemIconBadge(itemIconOptionForKey(_iconKey),
+                    size: 24),
                 label: Text(itemIconOptionForKey(_iconKey).label),
               ),
               TextFormField(

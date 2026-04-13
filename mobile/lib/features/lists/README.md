@@ -6,6 +6,7 @@ Current mobile flow:
 - list detail page with item list, add, edit, delete, and check-off actions
 - item rows support quick quantity increments on tap and a visible edit action plus category icon
 - item editor supports category icons for common products and defaults new items to the generic icon
+- product suggestions keep the last chosen category icon, so repeating the same product reuses the right icon automatically
 - share-list action by email from the detail screen
 - rename-list action from the detail screen for list owners
 - optimistic updates with reconciliation after server writes

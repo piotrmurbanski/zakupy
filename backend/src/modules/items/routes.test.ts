@@ -56,6 +56,7 @@ type TestSuggestion = {
   normalizedName: string;
   comment: string | null;
   normalizedComment: string;
+  iconKey: string;
   usageCount: number;
   lastUsedAt: Date;
   createdAt: Date;
@@ -110,6 +111,7 @@ function buildSuggestion(overrides: Partial<TestSuggestion> = {}): TestSuggestio
     normalizedName: 'milk',
     comment: '2%',
     normalizedComment: '2%',
+    iconKey: 'default',
     usageCount: 4,
     lastUsedAt: new Date('2026-03-29T10:00:00.000Z'),
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
@@ -225,6 +227,7 @@ async function buildApp(
           normalizedName: string;
           comment?: string | null;
           normalizedComment?: string;
+          iconKey: string;
           usageCount: number;
           lastUsedAt: Date;
         };
@@ -236,6 +239,7 @@ async function buildApp(
           normalizedName: data.normalizedName,
           comment: data.comment ?? null,
           normalizedComment: data.normalizedComment ?? '',
+          iconKey: data.iconKey,
           usageCount: data.usageCount,
           lastUsedAt: data.lastUsedAt,
           createdAt: data.lastUsedAt,
@@ -253,6 +257,7 @@ async function buildApp(
         data: {
           name?: string;
           comment?: string | null;
+          iconKey?: string;
           usageCount?: { increment: number };
           lastUsedAt?: Date;
         };
@@ -267,6 +272,7 @@ async function buildApp(
           ...suggestion,
           name: data.name ?? suggestion.name,
           comment: data.comment === undefined ? suggestion.comment : data.comment,
+          iconKey: data.iconKey ?? suggestion.iconKey,
           usageCount: suggestion.usageCount + (data.usageCount?.increment ?? 0),
           lastUsedAt: data.lastUsedAt ?? suggestion.lastUsedAt,
           updatedAt: data.lastUsedAt ?? suggestion.updatedAt
@@ -427,7 +433,16 @@ function buildSessionToken(userId: string) {
 test('GET /items/suggestions returns ranked suggestions for the user', async () => {
   const user = buildUser();
   const suggestions = new Map<string, TestSuggestion | undefined>([
-    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id, name: 'Milk', usageCount: 10 })],
+    [
+      'suggestion_1',
+      buildSuggestion({
+        id: 'suggestion_1',
+        userId: user.id,
+        name: 'Milk',
+        iconKey: 'eggs',
+        usageCount: 10
+      })
+    ],
     ['suggestion_2', buildSuggestion({ id: 'suggestion_2', userId: user.id, name: 'Batteries', usageCount: 2 })]
   ]);
   const { rawToken, session } = buildSessionToken(user.id);
@@ -442,6 +457,7 @@ test('GET /items/suggestions returns ranked suggestions for the user', async () 
 
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Milk', 'Batteries']);
+    assert.equal(response.json().items[0].iconKey, 'eggs');
   } finally {
     await app.close();
   }
@@ -486,16 +502,17 @@ test('POST /lists/:listId/items creates a new item for a visible list', async ()
       method: 'POST',
       url: `/lists/${list.id}/items`,
       headers: { authorization: `Bearer ${rawToken}` },
-      payload: { name: '  Apples  ', quantity: 2, comment: ' kg ' }
+      payload: { name: '  Apples  ', quantity: 2, comment: ' kg ', iconKey: 'bread' }
     });
 
     assert.equal(response.statusCode, 201);
     assert.equal(response.json().item.name, 'Apples');
     assert.equal(response.json().item.quantity, 2);
     assert.equal(response.json().item.comment, 'kg');
-    assert.equal(response.json().item.iconKey, 'default');
+    assert.equal(response.json().item.iconKey, 'bread');
     assert.equal(items.size, 2);
     assert.equal([...suggestions.values()][0]?.usageCount, 2);
+    assert.equal([...suggestions.values()][0]?.iconKey, 'bread');
   } finally {
     await app.close();
   }
@@ -522,15 +539,12 @@ test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
       method: 'PATCH',
       url: `/lists/${list.id}/items/${item.id}`,
       headers: { authorization: `Bearer ${rawToken}` },
-      payload: { name: 'Oat milk', quantity: 3, comment: 'Barista', isChecked: true }
+      payload: { iconKey: 'beer' }
     });
 
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json().item.name, 'Oat milk');
-    assert.equal(response.json().item.quantity, 3);
-    assert.equal(response.json().item.comment, 'Barista');
-    assert.equal(response.json().item.isChecked, true);
-    assert.equal(response.json().item.iconKey, 'default');
+    assert.equal(response.json().item.iconKey, 'beer');
+    assert.equal(suggestions.get('suggestion_1')?.iconKey, 'beer');
   } finally {
     await app.close();
   }
