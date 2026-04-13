@@ -7,29 +7,28 @@ import 'features/auth/auth_profile_store.dart';
 import 'features/auth/auth_session_store.dart';
 import 'features/auth/session_controller.dart';
 
+const _brandGreen = Color(0xFF10B96B);
 const _defaultApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: '',
 );
 
 ThemeData buildLightTheme() {
-  return ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0A84FF),
-      brightness: Brightness.light,
-    ),
-    useMaterial3: true,
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: _brandGreen,
+    primary: _brandGreen,
+    brightness: Brightness.light,
   );
+  return ThemeData(colorScheme: colorScheme, useMaterial3: true);
 }
 
 ThemeData buildDarkTheme() {
-  return ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF0A84FF),
-      brightness: Brightness.dark,
-    ),
-    useMaterial3: true,
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: _brandGreen,
+    primary: _brandGreen,
+    brightness: Brightness.dark,
   );
+  return ThemeData(colorScheme: colorScheme, useMaterial3: true);
 }
 
 class ZakupyApp extends StatefulWidget {

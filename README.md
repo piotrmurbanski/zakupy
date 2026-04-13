@@ -17,7 +17,18 @@ W kodzie są już dostępne:
 - współdzielenie list z innym użytkownikiem
 - zmiana nazwy listy z widoku szczegółów przez właściciela
 - dodawanie, edycja, usuwanie i odhaczanie pozycji
-- odświeżanie danych po zapisie oraz okresowy refresh w widoku szczegółów listy
+- odświeżanie danych po zapisie oraz okresowy refresh na ekranie list i w widoku szczegółów listy
+
+## Synchronizacja między telefonami
+
+Aktualny model synchronizacji jest prosty i oparty o polling:
+- ekran list odświeża się automatycznie co 15 sekund
+- widok szczegółów listy odświeża się automatycznie co 15 sekund
+- nadal działa ręczny refresh przyciskiem oraz pull-to-refresh
+
+W praktyce oznacza to:
+- nowa udostępniona lista powinna pojawić się na drugim telefonie maksymalnie po około 15 sekundach, jeśli użytkownik jest na ekranie list
+- dodany, usunięty albo zmodyfikowany element powinien pojawić się na drugim telefonie maksymalnie po około 15 sekundach, jeśli użytkownik ma otwartą tę listę
 
 ## Struktura repozytorium
 
