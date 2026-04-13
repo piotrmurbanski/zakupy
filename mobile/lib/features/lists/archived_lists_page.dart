@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
@@ -21,16 +23,35 @@ class ArchivedListsPage extends StatefulWidget {
 
 class _ArchivedListsPageState extends State<ArchivedListsPage> {
   final List<ShoppingListSummary> _lists = <ShoppingListSummary>[];
+  Timer? _refreshTimer;
   bool _isLoading = true;
+  bool _isRefreshing = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _loadLists();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        _loadLists(silent: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadLists({bool silent = false}) async {
+    if (_isRefreshing) {
+      return;
+    }
+
+    _isRefreshing = true;
+
     if (!silent) {
       setState(() {
         _isLoading = true;
@@ -65,6 +86,8 @@ class _ArchivedListsPageState extends State<ArchivedListsPage> {
         _isLoading = false;
         _errorMessage = error.message;
       });
+    } finally {
+      _isRefreshing = false;
     }
   }
 

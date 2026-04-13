@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
@@ -25,8 +27,10 @@ class ListOverviewPage extends StatefulWidget {
 class _ListOverviewPageState extends State<ListOverviewPage> {
   final List<ShoppingListSummary> _lists = <ShoppingListSummary>[];
   late final ShareEmailHistoryStore _shareEmailHistoryStore;
+  Timer? _refreshTimer;
 
   bool _isLoading = true;
+  bool _isRefreshing = false;
   String? _errorMessage;
 
   @override
@@ -35,9 +39,26 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
     _shareEmailHistoryStore =
         widget.shareEmailHistoryStore ?? SecureShareEmailHistoryStore();
     _reloadLists();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        _reloadLists(silent: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _reloadLists({bool silent = false}) async {
+    if (_isRefreshing) {
+      return;
+    }
+
+    _isRefreshing = true;
+
     if (!silent && mounted) {
       setState(() {
         _isLoading = true;
@@ -79,6 +100,8 @@ class _ListOverviewPageState extends State<ListOverviewPage> {
           SnackBar(content: Text('Nie udało się odświeżyć list: $message')),
         );
       }
+    } finally {
+      _isRefreshing = false;
     }
   }
 

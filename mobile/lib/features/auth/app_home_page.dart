@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
@@ -36,15 +38,28 @@ class AppHomePage extends StatefulWidget {
 
 class _AppHomePageState extends State<AppHomePage> {
   final List<ShoppingListSummary> _lists = <ShoppingListSummary>[];
+  Timer? _refreshTimer;
 
   bool _isLoading = true;
   bool _isUpdating = false;
+  bool _isRefreshing = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _loadLists();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        _loadLists(silent: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   ApiClient get _apiClient {
@@ -52,6 +67,12 @@ class _AppHomePageState extends State<AppHomePage> {
   }
 
   Future<void> _loadLists({bool silent = false}) async {
+    if (_isRefreshing) {
+      return;
+    }
+
+    _isRefreshing = true;
+
     if (!silent) {
       setState(() {
         _isLoading = true;
@@ -87,6 +108,8 @@ class _AppHomePageState extends State<AppHomePage> {
         _isLoading = false;
         _errorMessage = error.message;
       });
+    } finally {
+      _isRefreshing = false;
     }
   }
 
