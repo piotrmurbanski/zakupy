@@ -4,6 +4,8 @@ Current mobile flow:
 - list overview page that loads `/lists` and supports pull-to-refresh
 - create-list action from the authenticated home screen
 - list detail page with item list, add, edit, delete, and check-off actions
+- item rows support quick quantity increments on tap and a visible edit action plus category icon
+- item editor supports category icons for common products and defaults new items to the generic icon
 - share-list action by email from the detail screen
 - rename-list action from the detail screen for list owners
 - optimistic updates with reconciliation after server writes

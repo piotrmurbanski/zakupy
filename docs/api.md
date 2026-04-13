@@ -376,6 +376,7 @@ Response:
       "quantity": 2,
       "comment": "2%",
       "isChecked": false,
+      "iconKey": "default",
       "sortOrder": 0,
       "createdByUserId": "user_id",
       "createdAt": "2026-03-29T10:00:00.000Z",
@@ -399,7 +400,8 @@ Request body:
 {
   "name": "Milk",
   "quantity": 2,
-  "comment": "2%"
+  "comment": "2%",
+  "iconKey": "eggs"
 }
 ```
 
@@ -414,6 +416,7 @@ Response:
     "quantity": 2,
     "comment": "2%",
     "isChecked": false,
+    "iconKey": "default",
     "sortOrder": 0,
     "createdByUserId": "user_id",
     "createdAt": "2026-03-29T10:00:00.000Z",
@@ -442,7 +445,8 @@ Request body:
   "name": "Oat milk",
   "quantity": 3,
   "comment": "Barista",
-  "isChecked": true
+  "isChecked": true,
+  "iconKey": "bread"
 }
 ```
 
@@ -457,6 +461,7 @@ Response:
     "quantity": 3,
     "comment": "Barista",
     "isChecked": true,
+    "iconKey": "bread",
     "sortOrder": 0,
     "createdByUserId": "user_id",
     "createdAt": "2026-03-29T10:00:00.000Z",

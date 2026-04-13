@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zakupy_mobile/core/network/api_client.dart';
+import 'package:zakupy_mobile/core/models/item_icon.dart';
 import 'package:zakupy_mobile/features/auth/auth_models.dart';
 
 class _RecordingAdapter implements HttpClientAdapter {
@@ -92,6 +93,7 @@ void main() {
     expect(item.isChecked, true);
     expect(item.sortOrder, 3);
     expect(item.createdByUserId, 'user_1');
+    expect(item.iconKey, defaultItemIconKey);
   });
 
   test('ShoppingListItem.toDraft and ItemDraft.toJson preserve nullable fields',
@@ -114,6 +116,7 @@ void main() {
       'comment': 'Na tosty',
       'quantity': 1,
       'isChecked': false,
+      'iconKey': defaultItemIconKey,
     });
   });
 
@@ -131,6 +134,7 @@ void main() {
     expect(updated.quantity, 2);
     expect(updated.comment, 'Bez laktozy');
     expect(updated.isChecked, true);
+    expect(updated.iconKey, defaultItemIconKey);
   });
 
   test('ApiException identifies unauthorized responses', () {

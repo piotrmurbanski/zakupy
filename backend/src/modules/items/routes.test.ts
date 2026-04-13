@@ -31,6 +31,7 @@ type TestItem = {
   quantity: number;
   comment: string | null;
   isChecked: boolean;
+  iconKey: string;
   sortOrder: number;
   createdByUserId: string;
   createdAt: Date;
@@ -92,6 +93,7 @@ function buildItem(overrides: Partial<TestItem> = {}): TestItem {
     quantity: 2,
     comment: '2%',
     isChecked: false,
+    iconKey: 'default',
     sortOrder: 0,
     createdByUserId: 'user_1',
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
@@ -337,6 +339,7 @@ async function buildApp(
           quantity: number;
           comment?: string | null;
           isChecked: boolean;
+          iconKey: string;
           sortOrder: number;
           createdByUserId: string;
         };
@@ -349,6 +352,7 @@ async function buildApp(
           quantity: data.quantity,
           comment: data.comment ?? null,
           isChecked: data.isChecked,
+          iconKey: data.iconKey,
           sortOrder: data.sortOrder,
           createdByUserId: data.createdByUserId,
           createdAt: now,
@@ -359,12 +363,12 @@ async function buildApp(
         return item;
       },
       update: async ({
-        where,
-        data
-      }: {
-        where: { id: string };
-        data: { name?: string; quantity?: number; comment?: string | null; isChecked?: boolean };
-      }) => {
+      where,
+      data
+    }: {
+      where: { id: string };
+      data: { name?: string; quantity?: number; comment?: string | null; isChecked?: boolean; iconKey?: string };
+    }) => {
         const item = itemsById.get(where.id);
 
         if (!item) {
@@ -377,6 +381,7 @@ async function buildApp(
           quantity: data.quantity === undefined ? item.quantity : data.quantity,
           comment: data.comment === undefined ? item.comment : data.comment,
           isChecked: data.isChecked ?? item.isChecked,
+          iconKey: data.iconKey ?? item.iconKey,
           updatedAt: new Date('2026-03-30T10:00:00.000Z')
         };
 
@@ -488,6 +493,7 @@ test('POST /lists/:listId/items creates a new item for a visible list', async ()
     assert.equal(response.json().item.name, 'Apples');
     assert.equal(response.json().item.quantity, 2);
     assert.equal(response.json().item.comment, 'kg');
+    assert.equal(response.json().item.iconKey, 'default');
     assert.equal(items.size, 2);
     assert.equal([...suggestions.values()][0]?.usageCount, 2);
   } finally {
@@ -524,6 +530,44 @@ test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
     assert.equal(response.json().item.quantity, 3);
     assert.equal(response.json().item.comment, 'Barista');
     assert.equal(response.json().item.isChecked, true);
+    assert.equal(response.json().item.iconKey, 'default');
+  } finally {
+    await app.close();
+  }
+});
+
+test('PATCH /lists/:listId/items/:itemId updates an item icon', async () => {
+  const user = buildUser();
+  const list = buildList({ memberIds: new Set([user.id]) });
+  const item = buildItem({
+    id: 'item_1',
+    listId: list.id,
+    name: 'Milk',
+    quantity: 1,
+    comment: '2%',
+    isChecked: false,
+    iconKey: 'default',
+    createdByUserId: user.id
+  });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(
+    new Map([[user.id, user]]),
+    new Map([[list.id, list]]),
+    new Map([[item.id, item]]),
+    new Map(),
+    [session]
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/lists/${list.id}/items/${item.id}`,
+      headers: { authorization: `Bearer ${rawToken}` },
+      payload: { iconKey: 'bread' }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().item.iconKey, 'bread');
   } finally {
     await app.close();
   }

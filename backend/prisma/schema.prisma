@@ -114,6 +114,7 @@ model ListItem {
   quantity        Int          @default(1)
   comment         String?
   isChecked       Boolean      @default(false) @map("is_checked")
+  iconKey         String       @default("default") @map("icon_key")
   sortOrder       Int          @default(0) @map("sort_order")
   createdByUserId String       @map("created_by_user_id")
   createdAt       DateTime     @default(now()) @map("created_at")

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../models/item_icon.dart';
 import '../../features/auth/auth_models.dart';
 
 String normalizeBaseUrl(String baseUrl) {
@@ -457,24 +458,28 @@ class ItemDraft {
     this.comment,
     this.quantity = 1,
     this.isChecked = false,
+    this.iconKey = defaultItemIconKey,
   });
 
   final String name;
   final String? comment;
   final int quantity;
   final bool isChecked;
+  final String iconKey;
 
   ItemDraft copyWith({
     String? name,
     String? comment,
     int? quantity,
     bool? isChecked,
+    String? iconKey,
   }) {
     return ItemDraft(
       name: name ?? this.name,
       comment: comment ?? this.comment,
       quantity: quantity ?? this.quantity,
       isChecked: isChecked ?? this.isChecked,
+      iconKey: iconKey ?? this.iconKey,
     );
   }
 
@@ -484,6 +489,7 @@ class ItemDraft {
       'comment': comment,
       'quantity': quantity,
       'isChecked': isChecked,
+      'iconKey': iconKey,
     };
   }
 }
@@ -500,6 +506,7 @@ class ShoppingListItem {
     required this.createdByUserId,
     required this.createdAt,
     required this.updatedAt,
+    this.iconKey = defaultItemIconKey,
   });
 
   final String id;
@@ -512,6 +519,7 @@ class ShoppingListItem {
   final String createdByUserId;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String iconKey;
 
   factory ShoppingListItem.fromJson(Map<String, dynamic> json) {
     return ShoppingListItem(
@@ -525,6 +533,7 @@ class ShoppingListItem {
       createdByUserId: json['createdByUserId'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      iconKey: json['iconKey'] as String? ?? defaultItemIconKey,
     );
   }
 
@@ -534,6 +543,7 @@ class ShoppingListItem {
       comment: comment,
       quantity: quantity,
       isChecked: isChecked,
+      iconKey: iconKey,
     );
   }
 
@@ -548,6 +558,7 @@ class ShoppingListItem {
     String? createdByUserId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? iconKey,
   }) {
     return ShoppingListItem(
       id: id ?? this.id,
@@ -560,6 +571,7 @@ class ShoppingListItem {
       createdByUserId: createdByUserId ?? this.createdByUserId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      iconKey: iconKey ?? this.iconKey,
     );
   }
 }

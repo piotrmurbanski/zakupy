@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/models/item_icon.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
 import 'share_list_dialog.dart';
@@ -251,6 +252,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       comment: draft.comment,
       quantity: draft.quantity,
       isChecked: draft.isChecked,
+      iconKey: draft.iconKey,
     );
 
     setState(() {
@@ -697,8 +699,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content:
-                Text('Nie udało się zapisać listy: ${error.message}')),
+            content: Text('Nie udało się zapisać listy: ${error.message}')),
       );
     }
   }
@@ -817,6 +818,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
   Widget _buildItemTile(ShoppingListItem item) {
     final isPending = _isItemPending(item.id);
+    final iconOption = itemIconOptionForKey(item.iconKey);
 
     return Dismissible(
       key: ValueKey<String>(item.id),
@@ -856,10 +858,34 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   : TextDecoration.none,
             ),
           ),
-          trailing: IconButton(
-            onPressed: isPending ? null : () => _onEditRequested(item),
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edytuj produkt',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: isPending ? null : () => _onEditRequested(item),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edytuj produkt',
+              ),
+              Tooltip(
+                message: iconOption.label,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    iconOption.icon,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -960,6 +986,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
       createdByUserId: 'pending',
       createdAt: now,
       updatedAt: now,
+      iconKey: draft.iconKey,
     );
   }
 
@@ -1136,6 +1163,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
   late bool _isChecked;
   late final TextEditingController _commentController;
   late int _quantity;
+  late String _iconKey;
 
   @override
   void initState() {
@@ -1148,6 +1176,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     );
     _isChecked = widget.initialItem?.isChecked ?? false;
     _quantity = widget.initialItem?.quantity ?? 1;
+    _iconKey = widget.initialItem?.iconKey ?? defaultItemIconKey;
   }
 
   @override
@@ -1168,6 +1197,7 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
         comment: _normalizedOptionalText(_commentController.text),
         quantity: _quantity,
         isChecked: _isChecked,
+        iconKey: _iconKey,
       ),
     );
   }
@@ -1180,6 +1210,41 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
     }
 
     return trimmed;
+  }
+
+  Future<void> _pickIcon() async {
+    final selectedKey = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Wybierz ikonę kategorii'),
+          children: [
+            for (final option in itemIconOptions)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(context).pop(option.key),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(option.icon),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(option.label)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    if (selectedKey == null) {
+      return;
+    }
+
+    setState(() {
+      _iconKey = selectedKey;
+    });
   }
 
   @override
@@ -1238,6 +1303,20 @@ class _ItemEditorDialogState extends State<_ItemEditorDialog> {
                     tooltip: 'Zwiększ ilość',
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Ikona kategorii',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _pickIcon,
+                icon: Icon(itemIconOptionForKey(_iconKey).icon),
+                label: Text(itemIconOptionForKey(_iconKey).label),
               ),
               TextFormField(
                 controller: _commentController,

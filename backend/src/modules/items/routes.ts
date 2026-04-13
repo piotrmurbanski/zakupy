@@ -12,6 +12,7 @@ type ItemResponse = {
   quantity: number;
   comment: string | null;
   isChecked: boolean;
+  iconKey: string;
   sortOrder: number;
   createdByUserId: string;
   createdAt: Date;
@@ -25,6 +26,7 @@ type ItemRecord = {
   quantity: number;
   comment: string | null;
   isChecked: boolean;
+  iconKey: string;
   sortOrder: number;
   createdByUserId: string;
   createdAt: Date;
@@ -69,26 +71,28 @@ type ItemRepository = {
   findFirst(args: {
     where: { id?: string; listId?: string };
   }): Promise<ItemRecord | null>;
-  create(args: {
-    data: {
-      listId: string;
-      name: string;
-      quantity: number;
-      comment?: string | null;
-      isChecked: boolean;
-      sortOrder: number;
-      createdByUserId: string;
-    };
-  }): Promise<ItemRecord>;
-  update(args: {
-    where: { id: string };
-    data: {
-      name?: string;
-      quantity?: number;
-      comment?: string | null;
-      isChecked?: boolean;
-    };
-  }): Promise<ItemRecord>;
+    create(args: {
+      data: {
+        listId: string;
+        name: string;
+        quantity: number;
+        comment?: string | null;
+        isChecked: boolean;
+        iconKey: string;
+        sortOrder: number;
+        createdByUserId: string;
+      };
+    }): Promise<ItemRecord>;
+    update(args: {
+      where: { id: string };
+      data: {
+        name?: string;
+        quantity?: number;
+        comment?: string | null;
+        isChecked?: boolean;
+        iconKey?: string;
+      };
+    }): Promise<ItemRecord>;
   delete(args: {
     where: { id: string };
   }): Promise<ItemRecord>;
@@ -182,14 +186,16 @@ type ItemRoutesDeps = {
 const itemBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
-  comment: z.union([z.string().trim().min(1).max(140), z.null()]).optional()
+  comment: z.union([z.string().trim().min(1).max(140), z.null()]).optional(),
+  iconKey: z.string().trim().min(1).max(50).optional()
 });
 
 const updateItemBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   quantity: z.coerce.number().int().min(1).max(999).optional(),
   comment: z.union([z.string().trim().min(1).max(140), z.null()]).optional(),
-  isChecked: z.boolean().optional()
+  isChecked: z.boolean().optional(),
+  iconKey: z.string().trim().min(1).max(50).optional()
 });
 
 const defaultDeps = {
@@ -205,6 +211,7 @@ function toItemResponse(
     | 'quantity'
     | 'comment'
     | 'isChecked'
+    | 'iconKey'
     | 'sortOrder'
     | 'createdByUserId'
     | 'createdAt'
@@ -218,6 +225,7 @@ function toItemResponse(
     quantity: item.quantity,
     comment: item.comment,
     isChecked: item.isChecked,
+    iconKey: item.iconKey,
     sortOrder: item.sortOrder,
     createdByUserId: item.createdByUserId,
     createdAt: item.createdAt,
@@ -443,6 +451,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
           quantity: body.quantity ?? 1,
           comment: body.comment ?? null,
           isChecked: false,
+          iconKey: body.iconKey ?? 'default',
           sortOrder,
           createdByUserId: user.id
         }
@@ -501,7 +510,8 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
           name: body.name,
           quantity: body.quantity,
           comment: body.comment,
-          isChecked: body.isChecked
+          isChecked: body.isChecked,
+          iconKey: body.iconKey
         }
       });
 

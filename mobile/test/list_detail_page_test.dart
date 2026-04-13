@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zakupy_mobile/core/models/item_icon.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_detail_page.dart';
 import 'package:zakupy_mobile/features/lists/share_list_dialog.dart';
@@ -466,7 +467,29 @@ void main() {
     expect(apiClient.lastUpdatedDraft?.quantity, 3);
   });
 
-  testWidgets('shows inline edit button but not delete or quantity buttons', (
+  testWidgets('changes an item icon from the edit dialog', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Edytuj produkt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Domyślna'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pieczywo').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.lastUpdatedDraft?.iconKey, 'bread');
+  });
+
+  testWidgets(
+      'shows inline edit button and category icon but not delete or quantity buttons',
+      (
     tester,
   ) async {
     final apiClient = _FakeApiClient(
@@ -477,6 +500,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    expect(find.byTooltip('Domyślna'), findsOneWidget);
     expect(find.byIcon(Icons.delete_outline), findsNothing);
     expect(find.byIcon(Icons.add_circle_outline), findsNothing);
     expect(find.byIcon(Icons.remove_circle_outline), findsNothing);
@@ -488,6 +512,7 @@ final ShoppingListItem _milkItem = _item(
   name: 'Milk',
   quantity: 2,
   comment: '2%',
+  iconKey: 'default',
   sortOrder: 1,
 );
 
@@ -497,6 +522,7 @@ ShoppingListItem _item({
   int quantity = 1,
   String? comment,
   bool isChecked = false,
+  String iconKey = 'default',
   int sortOrder = 0,
 }) {
   return ShoppingListItem(
@@ -510,6 +536,7 @@ ShoppingListItem _item({
     createdByUserId: 'user_1',
     createdAt: DateTime.utc(2026, 4, 1, 10),
     updatedAt: DateTime.utc(2026, 4, 1, 10),
+    iconKey: iconKey,
   );
 }
 
@@ -543,8 +570,7 @@ class _FakeApiClient extends ApiClient {
     String listId, {
     required String name,
     DateTime? plannedFor,
-  })?
-      updateListHandler;
+  })? updateListHandler;
   final Future<ShoppingListSummary> Function(String listId)? archiveListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
   final Future<ShareListResult> Function(String listId, String email)?
