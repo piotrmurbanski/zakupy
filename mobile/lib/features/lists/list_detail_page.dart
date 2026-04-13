@@ -791,6 +791,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
     await _toggleItem(item, checked);
   }
 
+  Future<void> _onIncrementRequested(ShoppingListItem item) async {
+    if (_isItemPending(item.id)) {
+      return;
+    }
+
+    await _changeQuantity(item, 1);
+  }
+
   Future<void> _onEditRequested(ShoppingListItem item) async {
     if (_isItemPending(item.id)) {
       return;
@@ -832,7 +840,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
       },
       child: Card(
         child: ListTile(
-          onTap: isPending ? null : () => _onEditRequested(item),
+          onTap: isPending ? null : () => _onIncrementRequested(item),
+          onLongPress: isPending ? null : () => _onEditRequested(item),
           leading: Checkbox(
             value: item.isChecked,
             onChanged: isPending
@@ -846,6 +855,11 @@ class _ListDetailPageState extends State<ListDetailPage> {
                   ? TextDecoration.lineThrough
                   : TextDecoration.none,
             ),
+          ),
+          trailing: IconButton(
+            onPressed: isPending ? null : () => _onEditRequested(item),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edytuj produkt',
           ),
         ),
       ),

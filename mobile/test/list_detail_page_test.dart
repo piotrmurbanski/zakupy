@@ -246,7 +246,7 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Milk (2)'));
+    await tester.tap(find.byTooltip('Edytuj produkt'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Nazwa'),
@@ -451,7 +451,7 @@ void main() {
     expect(find.text('Milk'), findsOneWidget);
   });
 
-  testWidgets('increments item quantity from the edit dialog', (tester) async {
+  testWidgets('increments item quantity on tap', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
     );
@@ -461,16 +461,12 @@ void main() {
 
     await tester.tap(find.text('Milk (2)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Zwiększ ilość'));
-    await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
-    await tester.pumpAndSettle();
 
     expect(find.text('Milk (3)'), findsOneWidget);
     expect(apiClient.lastUpdatedDraft?.quantity, 3);
   });
 
-  testWidgets('does not show inline edit delete or quantity buttons', (
+  testWidgets('shows inline edit button but not delete or quantity buttons', (
     tester,
   ) async {
     final apiClient = _FakeApiClient(
@@ -480,7 +476,7 @@ void main() {
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
     expect(find.byIcon(Icons.delete_outline), findsNothing);
     expect(find.byIcon(Icons.add_circle_outline), findsNothing);
     expect(find.byIcon(Icons.remove_circle_outline), findsNothing);
