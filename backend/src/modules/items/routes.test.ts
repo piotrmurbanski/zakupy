@@ -439,7 +439,7 @@ test('GET /items/suggestions returns ranked suggestions for the user', async () 
         id: 'suggestion_1',
         userId: user.id,
         name: 'Milk',
-        iconKey: 'eggs',
+        iconKey: 'dairyEggs',
         usageCount: 10
       })
     ],
@@ -457,7 +457,7 @@ test('GET /items/suggestions returns ranked suggestions for the user', async () 
 
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Milk', 'Batteries']);
-    assert.equal(response.json().items[0].iconKey, 'eggs');
+    assert.equal(response.json().items[0].iconKey, 'dairyEggs');
   } finally {
     await app.close();
   }
@@ -543,8 +543,8 @@ test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
     });
 
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json().item.iconKey, 'beer');
-    assert.equal(suggestions.get('suggestion_1')?.iconKey, 'beer');
+    assert.equal(response.json().item.iconKey, 'alcohol');
+    assert.equal(suggestions.get('suggestion_1')?.iconKey, 'alcohol');
   } finally {
     await app.close();
   }

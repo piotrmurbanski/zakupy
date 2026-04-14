@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { UserRecord } from '../../lib/types.js';
 import { authenticateRequest } from '../auth/session.js';
+import { defaultItemIconKey, normalizeItemIconKey } from './item_icons.js';
 
 type ItemResponse = {
   id: string;
@@ -229,7 +230,7 @@ function toItemResponse(
     quantity: item.quantity,
     comment: item.comment,
     isChecked: item.isChecked,
-    iconKey: item.iconKey,
+    iconKey: normalizeItemIconKey(item.iconKey),
     sortOrder: item.sortOrder,
     createdByUserId: item.createdByUserId,
     createdAt: item.createdAt,
@@ -242,7 +243,7 @@ function toSuggestionResponse(suggestion: ItemSuggestionRecord): ItemSuggestionR
     id: suggestion.id,
     name: suggestion.name,
     comment: suggestion.comment,
-    iconKey: suggestion.iconKey,
+    iconKey: normalizeItemIconKey(suggestion.iconKey),
     usageCount: suggestion.usageCount,
     lastUsedAt: suggestion.lastUsedAt
   };
@@ -466,7 +467,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
           quantity: body.quantity ?? 1,
           comment: body.comment ?? null,
           isChecked: false,
-          iconKey: body.iconKey ?? 'default',
+          iconKey: normalizeItemIconKey(body.iconKey ?? defaultItemIconKey),
           sortOrder,
           createdByUserId: user.id
         }
@@ -527,7 +528,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
           quantity: body.quantity,
           comment: body.comment,
           isChecked: body.isChecked,
-          iconKey: body.iconKey
+          iconKey: body.iconKey ? normalizeItemIconKey(body.iconKey) : undefined
         }
       });
 

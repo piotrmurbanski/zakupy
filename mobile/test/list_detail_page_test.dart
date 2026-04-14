@@ -40,7 +40,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nazwa'), 'Bread');
+      find.widgetWithText(TextFormField, 'Nazwa'),
+      'Bread',
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
@@ -109,9 +111,7 @@ void main() {
   });
 
   testWidgets('does not show the raw list id in the header', (tester) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+    final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
@@ -120,12 +120,8 @@ void main() {
     expect(find.text('list_1'), findsNothing);
   });
 
-  testWidgets('overflow menu no longer shows archive action', (
-    tester,
-  ) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+  testWidgets('overflow menu no longer shows archive action', (tester) async {
+    final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
     await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
     await tester.pumpAndSettle();
@@ -215,9 +211,7 @@ void main() {
   testWidgets('rejects an empty rename before calling the backend', (
     tester,
   ) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+    final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
     await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
     await tester.pumpAndSettle();
@@ -227,7 +221,9 @@ void main() {
     await tester.tap(find.text('Edytuj listę'));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Nazwa listy'), '');
+      find.widgetWithText(TextFormField, 'Nazwa listy'),
+      '',
+    );
     await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pump();
 
@@ -264,8 +260,10 @@ void main() {
 
     expect(find.textContaining('Milk (2)'), findsOneWidget);
     expect(find.textContaining('Oat milk'), findsNothing);
-    expect(find.text('Nie udało się zapisać produktu: Save failed'),
-        findsOneWidget);
+    expect(
+      find.text('Nie udało się zapisać produktu: Save failed'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps loaded items visible when refresh fails', (tester) async {
@@ -314,8 +312,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
-    expect(find.text('Nie udało się zaktualizować produktu: Update failed'),
-        findsOneWidget);
+    expect(
+      find.text('Nie udało się zaktualizować produktu: Update failed'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reverts an optimistic delete when the backend rejects it', (
@@ -339,12 +339,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Milk (2)'), findsOneWidget);
-    expect(find.text('Nie udało się usunąć produktu: Delete failed'),
-        findsOneWidget);
+    expect(
+      find.text('Nie udało się usunąć produktu: Delete failed'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('marks the list as mutated as soon as a toggle starts',
-      (tester) async {
+  testWidgets('marks the list as mutated as soon as a toggle starts', (
+    tester,
+  ) async {
     final updateCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -386,16 +389,8 @@ void main() {
     final updateCompleter = Completer<ShoppingListItem>();
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[
-        _item(
-          id: 'item_1',
-          name: 'Milk',
-          sortOrder: 0,
-        ),
-        _item(
-          id: 'item_2',
-          name: 'Bread',
-          sortOrder: 1,
-        ),
+        _item(id: 'item_1', name: 'Milk', sortOrder: 0),
+        _item(id: 'item_2', name: 'Bread', sortOrder: 1),
       ],
       updateItemHandler: (_, __, ___) => updateCompleter.future,
     );
@@ -417,12 +412,7 @@ void main() {
     );
 
     updateCompleter.complete(
-      _item(
-        id: 'item_1',
-        name: 'Milk',
-        sortOrder: 0,
-        isChecked: true,
-      ),
+      _item(id: 'item_1', name: 'Milk', sortOrder: 0, isChecked: true),
     );
     await tester.pumpAndSettle();
   });
@@ -455,9 +445,7 @@ void main() {
   });
 
   testWidgets('increments item quantity on tap', (tester) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+    final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
@@ -470,43 +458,38 @@ void main() {
   });
 
   testWidgets('changes an item icon from the edit dialog', (tester) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+    final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
     await tester.pumpWidget(buildSubject(apiClient));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Edytuj produkt'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Domyślna'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Inne'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pieczywo').last);
+    await tester.tap(find.text('Słodycze i przekąski').last);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
     await tester.pumpAndSettle();
 
-    expect(apiClient.lastUpdatedDraft?.iconKey, 'bread');
+    expect(apiClient.lastUpdatedDraft?.iconKey, 'sweetsSnacks');
   });
 
   testWidgets(
-      'shows inline edit button and category icon but not delete or quantity buttons',
-      (
-    tester,
-  ) async {
-    final apiClient = _FakeApiClient(
-      items: <ShoppingListItem>[_milkItem],
-    );
+    'shows inline edit button and category icon but not delete or quantity buttons',
+    (tester) async {
+      final apiClient = _FakeApiClient(items: <ShoppingListItem>[_milkItem]);
 
-    await tester.pumpWidget(buildSubject(apiClient));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildSubject(apiClient));
+      await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-    expect(find.byTooltip('Domyślna'), findsOneWidget);
-    expect(find.byIcon(Icons.delete_outline), findsNothing);
-    expect(find.byIcon(Icons.add_circle_outline), findsNothing);
-    expect(find.byIcon(Icons.remove_circle_outline), findsNothing);
-  });
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+      expect(find.byTooltip('Inne'), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byIcon(Icons.add_circle_outline), findsNothing);
+      expect(find.byIcon(Icons.remove_circle_outline), findsNothing);
+    },
+  );
 }
 
 final ShoppingListItem _milkItem = _item(
@@ -658,11 +641,7 @@ class _FakeApiClient extends ApiClient {
     updateListCalls += 1;
 
     if (updateListHandler != null) {
-      return updateListHandler!(
-        listId,
-        name: name,
-        plannedFor: plannedFor,
-      );
+      return updateListHandler!(listId, name: name, plannedFor: plannedFor);
     }
 
     return ShoppingListSummary(
@@ -745,10 +724,7 @@ class _FakeApiClient extends ApiClient {
 }
 
 class _OpenListHarness extends StatelessWidget {
-  const _OpenListHarness({
-    required this.apiClient,
-    required this.onResult,
-  });
+  const _OpenListHarness({required this.apiClient, required this.onResult});
 
   final _FakeApiClient apiClient;
   final ValueChanged<bool?> onResult;

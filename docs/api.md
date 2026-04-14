@@ -356,6 +356,8 @@ Notes:
 
 ## Items
 
+`iconKey` uses the canonical values listed in [item-icons.md](item-icons.md). The server still accepts legacy aliases on write and normalizes them in responses.
+
 ### `GET /lists/:listId/items`
 
 Headers:
@@ -401,7 +403,7 @@ Request body:
   "name": "Milk",
   "quantity": 2,
   "comment": "2%",
-  "iconKey": "eggs"
+  "iconKey": "dairyEggs"
 }
 ```
 
@@ -491,7 +493,7 @@ Response:
       "id": "suggestion_id",
       "name": "Milk",
       "comment": "2%",
-      "iconKey": "eggs",
+      "iconKey": "dairyEggs",
       "usageCount": 12,
       "lastUsedAt": "2026-04-11T12:00:00.000Z"
     }
@@ -502,7 +504,7 @@ Response:
 Notes:
 - suggestions are ranked by `usageCount`, then by most recent use
 - usage is updated when a user creates an item or increases its quantity
-- the last chosen icon is stored with each suggestion and reused the next time the same product is selected
+- the last chosen canonical icon is stored with each suggestion and reused the next time the same product is selected
 
 ### `DELETE /lists/:listId/items/:itemId`
 
