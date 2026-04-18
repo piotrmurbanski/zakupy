@@ -28,3 +28,28 @@ Ważne dla testów na telefonach:
 - nie używaj `localhost` ani `127.0.0.1` dla backendu na fizycznym urządzeniu
 - użyj adresu Tailscale lub Caddy osiągalnego z telefonu
 - najlepiej uruchamiaj backend po HTTPS, zwłaszcza na iPhone
+
+## Android release signing
+
+Repo obsługuje teraz dwa tryby buildu Android:
+- bez `android/key.properties`: `release` podpisany debug key tylko do testów lokalnych
+- z `android/key.properties`: właściwy release podpisany Twoim keystore
+
+Przykładowa konfiguracja jest w `android/key.properties.example`.
+
+Szybki flow:
+
+```bash
+cd mobile
+mkdir -p keystore
+keytool -genkeypair -v \
+  -keystore keystore/zakupy-upload-keystore.jks \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -alias zakupy-release
+cp android/key.properties.example android/key.properties
+flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
+```
+
+Jeśli docelowo chcesz wrzucać aplikację do Google Play, zbuduj `appbundle` zamiast `apk`.

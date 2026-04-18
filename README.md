@@ -213,6 +213,44 @@ cd mobile
 flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
 ```
 
+Android release ma włączony `cleartext traffic`, żeby aplikacja mogła łączyć się z lokalnym backendem po `http://` podczas testów przez Tailscale. Jeśli później przejdziesz na HTTPS przez Caddy, ten wyjątek można z powrotem zawęzić albo usunąć.
+
+Jeśli chcesz przygotować prawdziwy podpisany release zamiast builda debug-sign:
+
+1. Wygeneruj keystore, na przykład:
+
+```bash
+cd mobile
+keytool -genkeypair -v \
+  -keystore keystore/zakupy-upload-keystore.jks \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -alias zakupy-release
+```
+
+2. Skopiuj konfigurację podpisu:
+
+```bash
+cp android/key.properties.example android/key.properties
+```
+
+3. Uzupełnij `android/key.properties` własnymi hasłami i ścieżką do keystore.
+
+4. Zbuduj podpisany APK:
+
+```bash
+flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
+```
+
+5. Albo zbuduj AAB pod Google Play:
+
+```bash
+flutter build appbundle --release --dart-define=API_BASE_URL=http://100.113.187.63
+```
+
+Konfiguracja Androida automatycznie użyje `android/key.properties`, jeśli plik istnieje. Jeśli go nie ma, `release` nadal zadziała na debug key tylko do testowej instalacji lokalnej.
+
 ### iPhone
 
 Na iPhonie albo w symulatorze:

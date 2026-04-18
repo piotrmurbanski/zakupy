@@ -1,0 +1,4 @@
+storePassword=change-me
+keyPassword=change-me
+keyAlias=zakupy-release
+storeFile=../keystore/zakupy-upload-keystore.jks
