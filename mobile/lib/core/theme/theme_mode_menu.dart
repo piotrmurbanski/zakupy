@@ -13,28 +13,28 @@ class ThemeModeMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<ThemeMode>(
-      tooltip: 'Appearance',
+      tooltip: 'Wygląd',
       onSelected: onSelected,
       icon: const Icon(Icons.brightness_6_outlined),
       itemBuilder: (context) => [
         PopupMenuItem<ThemeMode>(
           value: ThemeMode.system,
           child: _MenuItem(
-            label: 'System',
+            label: 'Systemowy',
             selected: currentThemeMode == ThemeMode.system,
           ),
         ),
         PopupMenuItem<ThemeMode>(
           value: ThemeMode.light,
           child: _MenuItem(
-            label: 'Light',
+            label: 'Jasny',
             selected: currentThemeMode == ThemeMode.light,
           ),
         ),
         PopupMenuItem<ThemeMode>(
           value: ThemeMode.dark,
           child: _MenuItem(
-            label: 'Dark',
+            label: 'Ciemny',
             selected: currentThemeMode == ThemeMode.dark,
           ),
         ),

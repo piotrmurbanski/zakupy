@@ -165,6 +165,37 @@ void main() {
     expect(sessionStore.savedSession, isNull);
     expect(profileStore.savedProfile, isNull);
   });
+
+  test('requestCode returns a Polish fallback when an unexpected error occurs',
+      () async {
+    authRepository.throwUnexpectedOnRequestCode = true;
+
+    await controller.requestCode(
+      baseUrl: 'http://localhost:3000/',
+      email: 'test@example.com',
+    );
+
+    expect(
+      controller.value.errorMessage,
+      'Nie udało się teraz wysłać kodu logowania.',
+    );
+  });
+
+  test('verifyCode returns a Polish fallback when an unexpected error occurs',
+      () async {
+    authRepository.throwUnexpectedOnVerifyCode = true;
+
+    await controller.verifyCode(
+      baseUrl: 'http://localhost:3000/',
+      email: 'test@example.com',
+      code: '123456',
+    );
+
+    expect(
+      controller.value.errorMessage,
+      'Nie udało się teraz zweryfikować kodu.',
+    );
+  });
 }
 
 class _InMemorySessionStore extends InMemoryAuthSessionStore {
@@ -209,6 +240,8 @@ class _FakeAuthRepository extends AuthRepository {
   ApiException? requestCodeError;
   ApiException? verifyCodeError;
   ApiException? currentUserError;
+  bool throwUnexpectedOnRequestCode = false;
+  bool throwUnexpectedOnVerifyCode = false;
   int requestCodeCalls = 0;
   int verifyCodeCalls = 0;
   int logoutCalls = 0;
@@ -224,6 +257,10 @@ class _FakeAuthRepository extends AuthRepository {
     if (requestCodeError != null) {
       throw requestCodeError!;
     }
+
+    if (throwUnexpectedOnRequestCode) {
+      throw StateError('boom');
+    }
   }
 
   @override
@@ -237,6 +274,10 @@ class _FakeAuthRepository extends AuthRepository {
 
     if (verifyCodeError != null) {
       throw verifyCodeError!;
+    }
+
+    if (throwUnexpectedOnVerifyCode) {
+      throw StateError('boom');
     }
 
     return verifyCodeResponse ??

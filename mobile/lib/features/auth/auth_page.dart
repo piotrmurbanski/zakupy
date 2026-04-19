@@ -179,8 +179,8 @@ class _AuthPageState extends State<AuthPage> {
                           const SizedBox(height: 8),
                           Text(
                             isRequestStep
-                                ? 'Enter your email to receive a sign-in code. On real phones, use your Tailscale or Caddy URL instead of localhost.'
-                                : 'Enter the code we sent to ${_emailController.text.trim()} to trust this device.',
+                                ? 'Podaj swój adres e-mail, aby otrzymać kod logowania. Na prawdziwym telefonie użyj adresu Tailscale albo Caddy zamiast localhost.'
+                                : 'Wpisz kod wysłany na adres ${_emailController.text.trim()}, aby zaufać temu urządzeniu.',
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 24),
@@ -192,7 +192,7 @@ class _AuthPageState extends State<AuthPage> {
                           TextFormField(
                             controller: _baseUrlController,
                             decoration: const InputDecoration(
-                              labelText: 'API base URL',
+                              labelText: 'Adres API',
                               hintText: 'https://listek.your-tailnet.ts.net',
                             ),
                             keyboardType: TextInputType.url,
@@ -201,7 +201,7 @@ class _AuthPageState extends State<AuthPage> {
                               final trimmed = value?.trim() ?? '';
 
                               if (trimmed.isEmpty) {
-                                return 'API base URL is required';
+                                return 'Adres API jest wymagany';
                               }
 
                               final uri = Uri.tryParse(trimmed);
@@ -209,7 +209,7 @@ class _AuthPageState extends State<AuthPage> {
                               if (uri == null ||
                                   !uri.hasScheme ||
                                   uri.host.isEmpty) {
-                                return 'Enter a valid URL, for example https://listek.your-tailnet.ts.net';
+                                return 'Podaj poprawny adres URL, na przykład https://listek.your-tailnet.ts.net';
                               }
 
                               return null;
@@ -232,7 +232,7 @@ class _AuthPageState extends State<AuthPage> {
                               );
 
                               if (!emailPattern.hasMatch(trimmed)) {
-                                return 'Enter a valid email address';
+                                return 'Podaj poprawny adres e-mail';
                               }
 
                               return null;
@@ -242,7 +242,7 @@ class _AuthPageState extends State<AuthPage> {
                           TextFormField(
                             controller: _displayNameController,
                             decoration: const InputDecoration(
-                              labelText: 'Display name (optional)',
+                              labelText: 'Nazwa wyświetlana (opcjonalnie)',
                             ),
                             textCapitalization: TextCapitalization.words,
                             enabled: !widget.isSubmitting,
@@ -254,7 +254,7 @@ class _AuthPageState extends State<AuthPage> {
                               }
 
                               if (trimmed.length < 2) {
-                                return 'Display name must be at least 2 characters';
+                                return 'Nazwa wyświetlana musi mieć co najmniej 2 znaki';
                               }
 
                               return null;
@@ -265,7 +265,7 @@ class _AuthPageState extends State<AuthPage> {
                             TextFormField(
                               controller: _codeController,
                               decoration: const InputDecoration(
-                                labelText: 'Sign-in code',
+                                labelText: 'Kod logowania',
                               ),
                               keyboardType: TextInputType.number,
                               textInputAction: TextInputAction.done,
@@ -275,11 +275,11 @@ class _AuthPageState extends State<AuthPage> {
                                 final trimmed = value?.trim() ?? '';
 
                                 if (trimmed.isEmpty) {
-                                  return 'Sign-in code is required';
+                                  return 'Kod logowania jest wymagany';
                                 }
 
                                 if (trimmed.length < 4) {
-                                  return 'Enter the code from your email';
+                                  return 'Wpisz kod z wiadomości e-mail';
                                 }
 
                                 return null;
@@ -303,7 +303,7 @@ class _AuthPageState extends State<AuthPage> {
                                     ),
                                   )
                                 : Text(
-                                    isRequestStep ? 'Send code' : 'Verify code',
+                                    isRequestStep ? 'Wyślij kod' : 'Zweryfikuj kod',
                                   ),
                           ),
                           const SizedBox(height: 12),
@@ -312,14 +312,14 @@ class _AuthPageState extends State<AuthPage> {
                               onPressed: widget.isSubmitting
                                   ? null
                                   : _editEmail,
-                              child: const Text('Use a different email'),
+                              child: const Text('Użyj innego adresu e-mail'),
                             ),
                           if (!isRequestStep)
                             TextButton(
                               onPressed: widget.isSubmitting
                                   ? null
                                   : _requestCode,
-                              child: const Text('Send code again'),
+                              child: const Text('Wyślij kod ponownie'),
                             ),
                         ],
                       ),

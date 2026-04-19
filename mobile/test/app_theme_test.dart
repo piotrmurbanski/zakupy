@@ -42,7 +42,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.brightness_6_outlined));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Dark'));
+    await tester.tap(find.text('Ciemny'));
     await tester.pumpAndSettle();
 
     expect(currentThemeMode, ThemeMode.dark);

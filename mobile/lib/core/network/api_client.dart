@@ -52,7 +52,9 @@ class ApiClient {
       final status = _readString(response.data, 'status');
 
       if (status != 'code_sent') {
-        throw const ApiException('Unexpected response from /auth/request-code');
+        throw const ApiException(
+          'Serwer zwrócił nieoczekiwaną odpowiedź podczas wysyłania kodu.',
+        );
       }
     });
   }
@@ -98,7 +100,9 @@ class ApiClient {
       final status = _readString(response.data, 'status');
 
       if (status != 'logged_out') {
-        throw const ApiException('Unexpected response from /auth/logout');
+        throw const ApiException(
+          'Serwer zwrócił nieoczekiwaną odpowiedź podczas wylogowywania.',
+        );
       }
     });
   }
@@ -207,7 +211,7 @@ class ApiClient {
       }
 
       throw const ApiException(
-        'Unexpected response from list sharing endpoint',
+        'Serwer zwrócił nieoczekiwaną odpowiedź podczas udostępniania listy.',
       );
     });
   }
@@ -313,7 +317,7 @@ class ApiClient {
     final sessionToken = payload?['sessionToken'] ?? payload?['accessToken'];
 
     if (sessionToken is! String || sessionToken.trim().isEmpty) {
-      throw const ApiException('Missing sessionToken in API response');
+      throw const ApiException('Brakuje tokenu sesji w odpowiedzi API.');
     }
 
     return AuthSession(
@@ -332,7 +336,7 @@ class ApiClient {
       return value;
     }
 
-    throw ApiException('Missing $key in API response');
+    throw ApiException('Brakuje pola $key w odpowiedzi API.');
   }
 
   static Map<String, dynamic> _readObject(
@@ -349,7 +353,7 @@ class ApiClient {
       return Map<String, dynamic>.from(value);
     }
 
-    throw ApiException('Missing $key in API response');
+    throw ApiException('Brakuje pola $key w odpowiedzi API.');
   }
 }
 
@@ -371,7 +375,7 @@ class ApiException implements Exception {
     if (error.error is SocketException ||
         error.type == DioExceptionType.connectionError) {
       return const ApiException(
-        'Could not reach the backend. Use your Tailscale or Caddy address on real devices instead of localhost.',
+        'Nie udało się połączyć z backendem. Na prawdziwym urządzeniu użyj adresu Tailscale albo Caddy zamiast localhost.',
       );
     }
 
@@ -379,26 +383,28 @@ class ApiException implements Exception {
         error.type == DioExceptionType.receiveTimeout ||
         error.type == DioExceptionType.sendTimeout) {
       return const ApiException(
-        'The backend took too long to respond. Check that it is running and reachable over Tailscale.',
+        'Backend odpowiadał zbyt długo. Sprawdź, czy działa i jest osiągalny przez Tailscale.',
       );
     }
 
     final statusCode = error.response?.statusCode;
     if (statusCode == 401) {
       return const ApiException(
-        'Your session expired. Please log in again.',
+        'Sesja wygasła. Zaloguj się ponownie.',
         statusCode: 401,
       );
     }
 
     if (statusCode != null) {
       return ApiException(
-        'Request failed with status $statusCode.',
+        'Żądanie nie powiodło się. Kod odpowiedzi: $statusCode.',
         statusCode: statusCode,
       );
     }
 
-    return const ApiException('Unexpected network error. Please try again.');
+    return const ApiException(
+      'Wystąpił nieoczekiwany błąd sieci. Spróbuj ponownie.',
+    );
   }
 
   final String message;

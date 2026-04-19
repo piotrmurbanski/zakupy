@@ -156,6 +156,65 @@ void main() {
     expect(error.isUnauthorized, true);
   });
 
+  test('ApiException localizes connection and timeout failures', () {
+    final connectionError = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/request-code'),
+        type: DioExceptionType.connectionError,
+      ),
+    );
+
+    expect(
+      connectionError.message,
+      'Nie udało się połączyć z backendem. Na prawdziwym urządzeniu użyj adresu Tailscale albo Caddy zamiast localhost.',
+    );
+
+    final timeoutError = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/request-code'),
+        type: DioExceptionType.connectionTimeout,
+      ),
+    );
+
+    expect(
+      timeoutError.message,
+      'Backend odpowiadał zbyt długo. Sprawdź, czy działa i jest osiągalny przez Tailscale.',
+    );
+  });
+
+  test('ApiException localizes unauthorized and generic HTTP failures', () {
+    final unauthorized = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/me'),
+        response: Response<void>(
+          requestOptions: RequestOptions(path: '/auth/me'),
+          statusCode: 401,
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    expect(unauthorized.message, 'Sesja wygasła. Zaloguj się ponownie.');
+    expect(unauthorized.statusCode, 401);
+
+    final badGateway = ApiException.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/me'),
+        response: Response<void>(
+          requestOptions: RequestOptions(path: '/auth/me'),
+          statusCode: 502,
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    expect(
+      badGateway.message,
+      'Żądanie nie powiodło się. Kod odpowiedzi: 502.',
+    );
+    expect(badGateway.statusCode, 502);
+  });
+
   test('ApiException prefers backend message from Dio responses', () {
     final authException = ApiException.fromDioException(
       DioException(

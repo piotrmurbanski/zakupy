@@ -90,7 +90,7 @@ class SessionController extends ValueNotifier<SessionState> {
       );
       await _profileStore.write(_profile!);
       value = const SessionState.unauthenticated(
-          errorMessage: 'Could not restore the saved session.');
+          errorMessage: 'Nie udało się przywrócić zapisanej sesji.');
     }
   }
 
@@ -118,7 +118,7 @@ class SessionController extends ValueNotifier<SessionState> {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Could not send a sign-in code right now.');
+          errorMessage: 'Nie udało się teraz wysłać kodu logowania.');
     }
   }
 
@@ -152,7 +152,7 @@ class SessionController extends ValueNotifier<SessionState> {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Could not verify the code right now.');
+          errorMessage: 'Nie udało się teraz zweryfikować kodu.');
     }
   }
 
