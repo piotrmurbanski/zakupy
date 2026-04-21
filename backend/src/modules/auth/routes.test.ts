@@ -11,6 +11,7 @@ type TestUser = {
   id: string;
   email: string;
   displayName: string;
+  phoneNumber: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -55,6 +56,7 @@ function buildUser(overrides: Partial<TestUser> = {}): TestUser {
     id: 'user_1',
     email: 'test@example.com',
     displayName: 'Test User',
+    phoneNumber: null,
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
     updatedAt: new Date('2026-03-29T10:00:00.000Z'),
     ...overrides
@@ -86,16 +88,45 @@ async function buildApp(options: {
 
         return [...users.values()].find((user) => user.email === where.email) ?? null;
       },
-      create: async ({ data }: { data: { email: string; displayName: string } }) => {
+      create: async ({
+        data
+      }: {
+        data: { email: string; displayName: string; phoneNumber?: string | null };
+      }) => {
         const user = buildUser({
           id: `user_${users.size + 1}`,
           email: data.email,
           displayName: data.displayName,
+          phoneNumber: data.phoneNumber ?? null,
           createdAt: now,
           updatedAt: now
         });
 
         users.set(user.id, user);
+        return user;
+      },
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: { displayName?: string; phoneNumber?: string | null };
+      }) => {
+        const user = users.get(where.id);
+
+        if (!user) {
+          throw new Error('User not found');
+        }
+
+        if (data.displayName !== undefined) {
+          user.displayName = data.displayName;
+        }
+
+        if (data.phoneNumber !== undefined) {
+          user.phoneNumber = data.phoneNumber;
+        }
+
+        user.updatedAt = now;
         return user;
       }
     },
@@ -396,7 +427,9 @@ test('POST /auth/verify-code rejects an invalid code and increments attempts', a
 });
 
 test('GET /auth/me returns the authenticated user for a valid session', async () => {
-  const user = buildUser();
+  const user = buildUser({
+    phoneNumber: '+48123123123'
+  });
   const rawToken = 'valid-session-token';
   const { app } = await buildApp({
     users: [user],
@@ -426,6 +459,128 @@ test('GET /auth/me returns the authenticated user for a valid session', async ()
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().user.email, user.email);
+    assert.equal(response.json().user.phoneNumber, user.phoneNumber);
+  } finally {
+    await app.close();
+  }
+});
+
+test('PATCH /auth/me saves a normalized phone number for the authenticated user', async () => {
+  const user = buildUser();
+  const rawToken = 'valid-session-token';
+  const { app, users } = await buildApp({
+    users: [user],
+    sessions: [
+      {
+        id: 'session_1',
+        userId: user.id,
+        tokenHash: hashSecret(rawToken),
+        deviceLabel: null,
+        lastUsedAt: new Date('2026-04-05T20:00:00.000Z'),
+        expiresAt: new Date('2026-07-05T20:00:00.000Z'),
+        revokedAt: null,
+        createdAt: new Date('2026-04-05T20:00:00.000Z'),
+        updatedAt: new Date('2026-04-05T20:00:00.000Z')
+      }
+    ]
+  });
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${rawToken}`
+      },
+      payload: {
+        phoneNumber: ' +48 123 123 123 '
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().user.phoneNumber, '+48123123123');
+    assert.equal(users.get(user.id)?.phoneNumber, '+48123123123');
+  } finally {
+    await app.close();
+  }
+});
+
+test('PATCH /auth/me clears the saved phone number when null is provided', async () => {
+  const user = buildUser({
+    phoneNumber: '+48123123123'
+  });
+  const rawToken = 'valid-session-token';
+  const { app, users } = await buildApp({
+    users: [user],
+    sessions: [
+      {
+        id: 'session_1',
+        userId: user.id,
+        tokenHash: hashSecret(rawToken),
+        deviceLabel: null,
+        lastUsedAt: new Date('2026-04-05T20:00:00.000Z'),
+        expiresAt: new Date('2026-07-05T20:00:00.000Z'),
+        revokedAt: null,
+        createdAt: new Date('2026-04-05T20:00:00.000Z'),
+        updatedAt: new Date('2026-04-05T20:00:00.000Z')
+      }
+    ]
+  });
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${rawToken}`
+      },
+      payload: {
+        phoneNumber: null
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().user.phoneNumber, null);
+    assert.equal(users.get(user.id)?.phoneNumber, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('PATCH /auth/me rejects an invalid phone number', async () => {
+  const user = buildUser();
+  const rawToken = 'valid-session-token';
+  const { app, users } = await buildApp({
+    users: [user],
+    sessions: [
+      {
+        id: 'session_1',
+        userId: user.id,
+        tokenHash: hashSecret(rawToken),
+        deviceLabel: null,
+        lastUsedAt: new Date('2026-04-05T20:00:00.000Z'),
+        expiresAt: new Date('2026-07-05T20:00:00.000Z'),
+        revokedAt: null,
+        createdAt: new Date('2026-04-05T20:00:00.000Z'),
+        updatedAt: new Date('2026-04-05T20:00:00.000Z')
+      }
+    ]
+  });
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${rawToken}`
+      },
+      payload: {
+        phoneNumber: 'abc-123'
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(users.get(user.id)?.phoneNumber, null);
   } finally {
     await app.close();
   }

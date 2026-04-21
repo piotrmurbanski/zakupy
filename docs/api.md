@@ -6,6 +6,7 @@
 - `POST /auth/verify-code`
 - `POST /auth/logout`
 - `GET /auth/me`
+- `PATCH /auth/me`
 
 ### Auth contract summary
 
@@ -60,6 +61,7 @@ Response:
     "id": "user_id",
     "email": "test@example.com",
     "displayName": "Piotr",
+    "phoneNumber": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
   }
@@ -107,11 +109,48 @@ Response:
     "id": "user_id",
     "email": "test@example.com",
     "displayName": "Piotr",
+    "phoneNumber": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
   }
 }
 ```
+
+### `PATCH /auth/me`
+
+Headers:
+
+```http
+Authorization: Bearer trusted-session-token
+```
+
+Request body:
+
+```json
+{
+  "phoneNumber": "+48123123123"
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "user_id",
+    "email": "test@example.com",
+    "displayName": "Piotr",
+    "phoneNumber": "+48123123123",
+    "createdAt": "2026-03-29T10:00:00.000Z",
+    "updatedAt": "2026-03-29T10:00:00.000Z"
+  }
+}
+```
+
+Notes:
+- send `null` as `phoneNumber` to clear the saved number
+- the backend normalizes accepted values to `+<countrycode><number>` form
+- invalid phone numbers should return `400`
 
 ## Lists
 

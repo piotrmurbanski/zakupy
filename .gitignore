@@ -6,3 +6,4 @@
 **/.DS_Store
 **/.flutter-plugins-dependencies
 infra/qnap.backend.env
+.worktrees/

@@ -15,7 +15,8 @@ import {
   getCodeExpiryDate,
   getSessionExpiryDate,
   hashSecret,
-  normalizeEmail
+  normalizeEmail,
+  normalizePhoneNumber
 } from './session.js';
 
 type AuthRoutesDeps = {
@@ -35,6 +36,10 @@ const verifyCodeBodySchema = z.object({
   email: emailSchema,
   code: z.string().trim().regex(/^\d{6}$/),
   displayName: z.string().trim().min(2).max(50).optional()
+});
+
+const updateProfileBodySchema = z.object({
+  phoneNumber: z.union([z.string().trim().min(1).max(32), z.null()])
 });
 
 const defaultDeps: AuthRoutesDeps = {
@@ -257,6 +262,40 @@ export function createAuthRoutes(deps: AuthRoutesDeps = defaultDeps): FastifyPlu
 
       return {
         user: toUserResponse(user)
+      };
+    });
+
+    app.patch('/auth/me', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const body = parseBody(updateProfileBodySchema, request.body);
+
+      if (!body) {
+        return reply.badRequest('Invalid request body');
+      }
+
+      const phoneNumber =
+        body.phoneNumber === null ? null : normalizePhoneNumber(body.phoneNumber);
+
+      if (body.phoneNumber !== null && phoneNumber === null) {
+        return reply.badRequest('Invalid phone number');
+      }
+
+      const updatedUser = await deps.prisma.user.update({
+        where: {
+          id: user.id
+        },
+        data: {
+          phoneNumber
+        }
+      });
+
+      return {
+        user: toUserResponse(updatedUser)
       };
     });
   };
