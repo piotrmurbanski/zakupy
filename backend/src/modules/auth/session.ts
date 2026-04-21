@@ -13,6 +13,32 @@ export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+export function normalizePhoneNumber(phoneNumber: string) {
+  const trimmed = phoneNumber.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  let normalized = trimmed.replace(/[\s()-]/g, '');
+
+  if (normalized.startsWith('00')) {
+    normalized = `+${normalized.slice(2)}`;
+  }
+
+  if (!/^\+?\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const digits = normalized.startsWith('+') ? normalized.slice(1) : normalized;
+
+  if (digits.length < 8 || digits.length > 15 || digits.startsWith('0')) {
+    return null;
+  }
+
+  return `+${digits}`;
+}
+
 export function hashSecret(value: string) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }

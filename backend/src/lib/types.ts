@@ -2,6 +2,7 @@ export type UserRecord = {
   id: string;
   email: string;
   displayName: string;
+  phoneNumber: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -63,6 +64,16 @@ export type AuthPrisma = {
       data: {
         email: string;
         displayName: string;
+        phoneNumber?: string | null;
+      };
+    }): Promise<UserRecord>;
+    update(args: {
+      where: {
+        id: string;
+      };
+      data: {
+        displayName?: string;
+        phoneNumber?: string | null;
       };
     }): Promise<UserRecord>;
   };
