@@ -11,6 +11,7 @@ type TestUser = {
   id: string;
   email: string;
   displayName: string;
+  phoneNumber: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -64,6 +65,7 @@ function buildUser(overrides: Partial<TestUser> = {}): TestUser {
     id: 'user_1',
     email: 'test@example.com',
     displayName: 'Test User',
+    phoneNumber: null,
     createdAt: new Date('2026-03-29T10:00:00.000Z'),
     updatedAt: new Date('2026-03-29T10:00:00.000Z'),
     ...overrides
@@ -278,6 +280,23 @@ async function buildApp(
     listMember: {
       findUnique: async ({ where }: { where: { listId_userId: { listId: string; userId: string } } }) =>
         membersByKey.get(`${where.listId_userId.listId}:${where.listId_userId.userId}`) ?? null,
+      findMany: async ({
+        where,
+        include
+      }: {
+        where: { listId: string };
+        include?: { user?: boolean };
+      }) =>
+        [...membersByKey.values()]
+          .filter((member) => member.listId === where.listId)
+          .map((member) =>
+            include?.user
+              ? {
+                  ...member,
+                  user: userById.get(member.userId) ?? undefined
+                }
+              : member
+          ),
       create: async ({
         data,
         include
@@ -322,6 +341,18 @@ async function buildApp(
     listInvitation: {
       findUnique: async ({ where }: { where: { listId_email: { listId: string; email: string } } }) =>
         invitations.find((item) => item.listId === where.listId_email.listId && item.email === where.listId_email.email) ?? null,
+      findMany: async ({ where }: { where: { listId: string; claimedAt?: null } }) =>
+        invitations.filter((item) => {
+          if (item.listId !== where.listId) {
+            return false;
+          }
+
+          if (where.claimedAt === null && item.claimedAt !== null) {
+            return false;
+          }
+
+          return true;
+        }),
       create: async ({ data }: { data: { listId: string; email: string; role: 'owner' | 'editor'; invitedByUserId: string } }) => {
         const invitation: TestInvitation = {
           id: `invite_${invitations.length + 1}`,
@@ -564,7 +595,12 @@ test('GET /lists rejects missing token', async () => {
 
 test('POST /lists/:listId/members adds an editor by email for the owner', async () => {
   const owner = buildUser();
-  const invitedUser = buildUser({ id: 'user_2', email: 'editor@example.com', displayName: 'Editor' });
+  const invitedUser = buildUser({
+    id: 'user_2',
+    email: 'editor@example.com',
+    displayName: 'Editor',
+    phoneNumber: '+48123123123'
+  });
   const list = buildList({ id: 'list_1', ownerUserId: owner.id, memberIds: new Set([owner.id]) });
   const { rawToken, session } = buildSessionToken(owner.id);
   const { app } = await buildApp(
@@ -586,7 +622,127 @@ test('POST /lists/:listId/members adds an editor by email for the owner', async 
 
     assert.equal(response.statusCode, 201);
     assert.equal(response.json().member.userId, invitedUser.id);
+    assert.equal(response.json().member.user.phoneNumber, invitedUser.phoneNumber);
+    assert.equal(response.json().member.user.whatsappEligible, true);
     assert.equal(list.memberIds.has(invitedUser.id), true);
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /lists/:listId returns owner-only sharing metadata for active members and pending invitations', async () => {
+  const owner = buildUser();
+  const editor = buildUser({
+    id: 'user_2',
+    email: 'editor@example.com',
+    displayName: 'Editor',
+    phoneNumber: '+48123123123'
+  });
+  const noPhoneEditor = buildUser({
+    id: 'user_3',
+    email: 'nophone@example.com',
+    displayName: 'No Phone',
+    phoneNumber: null
+  });
+  const list = buildList({
+    id: 'list_1',
+    ownerUserId: owner.id,
+    memberIds: new Set([owner.id, editor.id, noPhoneEditor.id])
+  });
+  const pendingInvitation: TestInvitation = {
+    id: 'invite_1',
+    listId: list.id,
+    email: 'pending@example.com',
+    role: 'editor',
+    invitedByUserId: owner.id,
+    claimedByUserId: null,
+    claimedAt: null,
+    createdAt: new Date('2026-03-30T10:00:00.000Z'),
+    updatedAt: new Date('2026-03-30T10:00:00.000Z')
+  };
+  const { rawToken, session } = buildSessionToken(owner.id);
+  const { app } = await buildApp(
+    new Map([
+      [owner.id, owner],
+      [editor.id, editor],
+      [noPhoneEditor.id, noPhoneEditor]
+    ]),
+    new Map([[list.id, list]]),
+    [session],
+    [pendingInvitation]
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/lists/${list.id}`,
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().sharing.memberContacts.length, 2);
+    assert.deepEqual(
+      response.json().sharing.memberContacts.map((member: { user: { email: string } }) => member.user.email).sort(),
+      ['editor@example.com', 'nophone@example.com']
+    );
+    const whatsappEligibleByEmail = Object.fromEntries(
+      response.json().sharing.memberContacts.map((member: { user: { email: string; whatsappEligible: boolean; phoneNumber: string | null } }) => [
+        member.user.email,
+        {
+          whatsappEligible: member.user.whatsappEligible,
+          phoneNumber: member.user.phoneNumber
+        }
+      ])
+    );
+    assert.deepEqual(whatsappEligibleByEmail, {
+      'editor@example.com': {
+        whatsappEligible: true,
+        phoneNumber: '+48123123123'
+      },
+      'nophone@example.com': {
+        whatsappEligible: false,
+        phoneNumber: null
+      }
+    });
+    assert.equal(response.json().sharing.pendingInvitations.length, 1);
+    assert.equal(response.json().sharing.pendingInvitations[0].email, 'pending@example.com');
+  } finally {
+    await app.close();
+  }
+});
+
+test('GET /lists/:listId does not expose sharing metadata to non-owner members', async () => {
+  const owner = buildUser();
+  const editor = buildUser({
+    id: 'user_2',
+    email: 'editor@example.com',
+    displayName: 'Editor',
+    phoneNumber: '+48123123123'
+  });
+  const list = buildList({
+    id: 'list_1',
+    ownerUserId: owner.id,
+    memberIds: new Set([owner.id, editor.id])
+  });
+  const { rawToken, session } = buildSessionToken(editor.id);
+  const { app } = await buildApp(
+    new Map([
+      [owner.id, owner],
+      [editor.id, editor]
+    ]),
+    new Map([[list.id, list]]),
+    [session]
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/lists/${list.id}`,
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal('sharing' in response.json(), false);
   } finally {
     await app.close();
   }

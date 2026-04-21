@@ -234,9 +234,45 @@ Response:
     "archivedAt": null,
     "createdAt": "2026-03-29T10:00:00.000Z",
     "updatedAt": "2026-03-29T10:00:00.000Z"
+  },
+  "sharing": {
+    "memberContacts": [
+      {
+        "id": "member_id",
+        "listId": "list_id",
+        "userId": "user_id",
+        "role": "editor",
+        "createdAt": "2026-03-29T10:00:00.000Z",
+        "updatedAt": "2026-03-29T10:00:00.000Z",
+        "user": {
+          "id": "user_id",
+          "email": "second-user@example.com",
+          "displayName": "Second User",
+          "phoneNumber": "+48123123123",
+          "whatsappEligible": true
+        }
+      }
+    ],
+    "pendingInvitations": [
+      {
+        "id": "invite_id",
+        "listId": "list_id",
+        "email": "pending@example.com",
+        "role": "editor",
+        "status": "pending",
+        "createdAt": "2026-03-29T10:00:00.000Z",
+        "updatedAt": "2026-03-29T10:00:00.000Z"
+      }
+    ]
   }
 }
 ```
+
+Notes:
+- the owner receives a `sharing` block with active member contact metadata and pending invitations
+- non-owner members still receive only the `list` object
+- `user.phoneNumber` is only exposed inside the owner-facing sharing metadata
+- `user.whatsappEligible` is `true` when the active member has a saved linked phone number
 
 ### `PATCH /lists/:listId`
 
@@ -354,7 +390,9 @@ Response:
     "user": {
       "id": "user_id",
       "email": "second-user@example.com",
-      "displayName": "Second User"
+      "displayName": "Second User",
+      "phoneNumber": "+48123123123",
+      "whatsappEligible": true
     }
   }
 }
@@ -364,6 +402,7 @@ Notes:
 - if the email already belongs to an active user, the backend creates the membership immediately
 - otherwise the backend creates a pending email share that will be auto-claimed the next time that email signs in
 - duplicate active memberships or duplicate pending email shares should return `409 Conflict`
+- immediate member responses now include `phoneNumber` and `whatsappEligible` for owner-facing WhatsApp handoff flows
 
 Alternative response for a pending invitation:
 
