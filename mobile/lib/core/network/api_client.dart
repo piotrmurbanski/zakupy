@@ -9,6 +9,23 @@ String normalizeBaseUrl(String baseUrl) {
   return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
 }
 
+Map<String, dynamic> _readResponseObject(
+  Map<String, dynamic>? payload,
+  String key,
+) {
+  final value = payload?[key];
+
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+
+  if (value is Map) {
+    return Map<String, dynamic>.from(value);
+  }
+
+  throw ApiException('Brakuje pola $key w odpowiedzi API.');
+}
+
 class ApiClient {
   ApiClient({required String baseUrl, String accessToken = '', Dio? dio})
     : baseUrl = normalizeBaseUrl(baseUrl),
@@ -123,6 +140,17 @@ class ApiClient {
               .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListSummary.fromJson).toList(growable: false);
+    });
+  }
+
+  Future<ShoppingListDetail> fetchListDetail(String listId) {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/lists/$listId',
+        options: _authOptions(),
+      );
+
+      return ShoppingListDetail.fromJson(response.data ?? const {});
     });
   }
 
@@ -451,6 +479,52 @@ class ShoppingListSummary {
   }
 }
 
+class ShoppingListDetail {
+  const ShoppingListDetail({
+    required this.list,
+    this.sharing,
+  });
+
+  final ShoppingListSummary list;
+  final ListSharingMetadata? sharing;
+
+  factory ShoppingListDetail.fromJson(Map<String, dynamic> json) {
+    return ShoppingListDetail(
+      list: ShoppingListSummary.fromJson(_readResponseObject(json, 'list')),
+      sharing: json['sharing'] == null
+          ? null
+          : ListSharingMetadata.fromJson(_readResponseObject(json, 'sharing')),
+    );
+  }
+}
+
+class ListSharingMetadata {
+  const ListSharingMetadata({
+    required this.memberContacts,
+    required this.pendingInvitations,
+  });
+
+  final List<ListMember> memberContacts;
+  final List<PendingListInvitation> pendingInvitations;
+
+  factory ListSharingMetadata.fromJson(Map<String, dynamic> json) {
+    final memberContacts =
+        (json['memberContacts'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+    final pendingInvitations =
+        (json['pendingInvitations'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+
+    return ListSharingMetadata(
+      memberContacts:
+          memberContacts.map(ListMember.fromJson).toList(growable: false),
+      pendingInvitations: pendingInvitations
+          .map(PendingListInvitation.fromJson)
+          .toList(growable: false),
+    );
+  }
+}
+
 class ItemDraft {
   const ItemDraft({
     required this.name,
@@ -609,17 +683,23 @@ class ListMemberUser {
     required this.id,
     required this.email,
     required this.displayName,
+    required this.phoneNumber,
+    required this.whatsappEligible,
   });
 
   final String id;
   final String email;
   final String displayName;
+  final String? phoneNumber;
+  final bool whatsappEligible;
 
   factory ListMemberUser.fromJson(Map<String, dynamic> json) {
     return ListMemberUser(
       id: json['id'] as String,
       email: json['email'] as String,
       displayName: json['displayName'] as String,
+      phoneNumber: json['phoneNumber'] as String?,
+      whatsappEligible: json['whatsappEligible'] as bool? ?? false,
     );
   }
 }
