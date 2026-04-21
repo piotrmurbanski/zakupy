@@ -16,6 +16,11 @@ type ListResponse = {
   updatedAt: Date;
 };
 
+type ListDetailResponse = {
+  list: ListResponse;
+  sharing?: SharingResponse;
+};
+
 type MemberResponse = {
   id: string;
   listId: string;
@@ -27,6 +32,8 @@ type MemberResponse = {
     id: string;
     email: string;
     displayName: string;
+    phoneNumber: string | null;
+    whatsappEligible: boolean;
   };
 };
 
@@ -38,6 +45,11 @@ type InvitationResponse = {
   status: 'pending';
   createdAt: Date;
   updatedAt: Date;
+};
+
+type SharingResponse = {
+  memberContacts: MemberResponse[];
+  pendingInvitations: InvitationResponse[];
 };
 
 type ListRecord = {
@@ -133,7 +145,15 @@ type ListMemberRepository = {
     include?: {
       user?: boolean;
     };
-  }): Promise<MemberRecord & { user?: Pick<UserRecord, 'id' | 'email' | 'displayName'> }>;
+  }): Promise<MemberRecord & { user?: Pick<UserRecord, 'id' | 'email' | 'displayName' | 'phoneNumber'> }>;
+  findMany(args: {
+    where: {
+      listId: string;
+    };
+    include?: {
+      user?: boolean;
+    };
+  }): Promise<Array<MemberRecord & { user?: Pick<UserRecord, 'id' | 'email' | 'displayName' | 'phoneNumber'> }>>;
   delete(args: {
     where: {
       listId_userId: {
@@ -190,6 +210,12 @@ type InvitationRepository = {
       invitedByUserId: string;
     };
   }): Promise<InvitationRecord>;
+  findMany(args: {
+    where: {
+      listId: string;
+      claimedAt?: null;
+    };
+  }): Promise<InvitationRecord[]>;
 };
 
 type ListRoutesDeps = {
@@ -240,7 +266,7 @@ function toListResponse(
 
 function toMemberResponse(
   member: Pick<MemberRecord, 'id' | 'listId' | 'userId' | 'role' | 'createdAt' | 'updatedAt'> & {
-    user: Pick<UserRecord, 'id' | 'email' | 'displayName'>;
+    user: Pick<UserRecord, 'id' | 'email' | 'displayName' | 'phoneNumber'>;
   }
 ): MemberResponse {
   return {
@@ -253,7 +279,9 @@ function toMemberResponse(
     user: {
       id: member.user.id,
       email: member.user.email,
-      displayName: member.user.displayName
+      displayName: member.user.displayName,
+      phoneNumber: member.user.phoneNumber,
+      whatsappEligible: member.user.phoneNumber != null
     }
   };
 }
@@ -321,6 +349,47 @@ function parseIncludeArchived(value: unknown) {
   return value === true || value === 'true' || value === '1' || value === 1;
 }
 
+async function buildOwnerSharingResponse(
+  deps: ListRoutesDeps,
+  listId: string,
+  ownerUserId: string,
+): Promise<SharingResponse> {
+  const [members, invitations] = await Promise.all([
+    deps.prisma.listMember.findMany({
+      where: {
+        listId
+      },
+      include: {
+        user: true
+      }
+    }),
+    deps.prisma.listInvitation.findMany({
+      where: {
+        listId,
+        claimedAt: null
+      }
+    })
+  ]);
+
+  const memberContacts = members
+    .filter((member) => member.userId !== ownerUserId)
+    .map((member) => {
+      if (!member.user) {
+        throw new Error('Expected included user on list member lookup');
+      }
+
+      return toMemberResponse({
+        ...member,
+        user: member.user
+      });
+    });
+
+  return {
+    memberContacts,
+    pendingInvitations: invitations.map(toInvitationResponse)
+  };
+}
+
 export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPluginAsync {
   return async (app) => {
     app.get('/lists', async (request, reply) => {
@@ -386,7 +455,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
       });
     });
 
-    app.get('/lists/:listId', async (request, reply) => {
+    app.get('/lists/:listId', async (request, reply): Promise<ListDetailResponse | void> => {
       const user = await authenticateRequest(deps.prisma, request, reply);
 
       if (!user) {
@@ -400,9 +469,15 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
         return reply.notFound('List not found');
       }
 
-      return {
+      const response: ListDetailResponse = {
         list: toListResponse(list)
       };
+
+      if (list.ownerUserId === user.id) {
+        response.sharing = await buildOwnerSharingResponse(deps, list.id, user.id);
+      }
+
+      return response;
     });
 
     app.patch('/lists/:listId', async (request, reply) => {
