@@ -17,6 +17,7 @@ void main() {
           id: 'user_1',
           email: 'test@test.com',
           displayName: 'Pio',
+          phoneNumber: null,
           createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
           updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
         ),
@@ -29,6 +30,7 @@ void main() {
         home: AppHomePage(
           session: session,
           authRepository: authRepository,
+          onUpdatePhoneNumber: (_) async => session.session.user,
           onLogout: () async {},
           onResetLocalData: () async {},
           themeMode: ThemeMode.system,
@@ -60,6 +62,7 @@ void main() {
           id: 'user_1',
           email: 'test@test.com',
           displayName: 'Pio',
+          phoneNumber: null,
           createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
           updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
         ),
@@ -72,6 +75,7 @@ void main() {
         home: AppHomePage(
           session: session,
           authRepository: authRepository,
+          onUpdatePhoneNumber: (_) async => session.session.user,
           onLogout: () async {},
           onResetLocalData: () async {},
           themeMode: ThemeMode.system,
@@ -104,7 +108,8 @@ class _FakeAuthRepository extends AuthRepository {
 }
 
 class _FakeApiClient extends ApiClient {
-  _FakeApiClient() : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
+  _FakeApiClient()
+    : super(baseUrl: 'http://localhost:3000', accessToken: 'token');
 
   @override
   Future<List<ShoppingListSummary>> fetchLists({

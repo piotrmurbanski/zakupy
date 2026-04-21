@@ -10,10 +10,9 @@ class AuthRepository {
     required String email,
     String? displayName,
   }) {
-    return ApiClient(baseUrl: baseUrl).requestCode(
-      email: email.trim(),
-      displayName: displayName?.trim(),
-    );
+    return ApiClient(
+      baseUrl: baseUrl,
+    ).requestCode(email: email.trim(), displayName: displayName?.trim());
   }
 
   Future<AuthSession> verifyCode({
@@ -39,14 +38,19 @@ class AuthRepository {
     ).fetchCurrentUser();
   }
 
-  Future<void> logout({
+  Future<AuthUser> updatePhoneNumber({
     required String baseUrl,
     required String sessionToken,
+    required String? phoneNumber,
   }) {
     return ApiClient(
       baseUrl: baseUrl,
       accessToken: sessionToken,
-    ).logout();
+    ).updateCurrentUser(phoneNumber: phoneNumber);
+  }
+
+  Future<void> logout({required String baseUrl, required String sessionToken}) {
+    return ApiClient(baseUrl: baseUrl, accessToken: sessionToken).logout();
   }
 
   ApiClient buildAuthenticatedClient(StoredAuthSession session) {

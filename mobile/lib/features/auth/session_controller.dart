@@ -14,11 +14,10 @@ class SessionState {
   const SessionState.loading() : this._(status: SessionStatus.loading);
 
   const SessionState.authenticated(StoredAuthSession session)
-      : this._(status: SessionStatus.authenticated, session: session);
+    : this._(status: SessionStatus.authenticated, session: session);
 
   const SessionState.unauthenticated({String? errorMessage})
-      : this._(
-            status: SessionStatus.unauthenticated, errorMessage: errorMessage);
+    : this._(status: SessionStatus.unauthenticated, errorMessage: errorMessage);
 
   final SessionStatus status;
   final StoredAuthSession? session;
@@ -30,10 +29,10 @@ class SessionController extends ValueNotifier<SessionState> {
     required AuthSessionStore sessionStore,
     required AuthProfileStore profileStore,
     required AuthRepository authRepository,
-  })  : _sessionStore = sessionStore,
-        _profileStore = profileStore,
-        _authRepository = authRepository,
-        super(const SessionState.loading());
+  }) : _sessionStore = sessionStore,
+       _profileStore = profileStore,
+       _authRepository = authRepository,
+       super(const SessionState.loading());
 
   final AuthSessionStore _sessionStore;
   final AuthProfileStore _profileStore;
@@ -55,20 +54,19 @@ class SessionController extends ValueNotifier<SessionState> {
 
     try {
       final user = await _authRepository.fetchCurrentUser(
-          baseUrl: storedSession.baseUrl,
-          sessionToken: storedSession.session.sessionToken);
+        baseUrl: storedSession.baseUrl,
+        sessionToken: storedSession.session.sessionToken,
+      );
       final session = StoredAuthSession(
-          baseUrl: storedSession.baseUrl,
-          session: AuthSession(
-            sessionToken: storedSession.session.sessionToken,
-            user: user,
-          ));
+        baseUrl: storedSession.baseUrl,
+        session: AuthSession(
+          sessionToken: storedSession.session.sessionToken,
+          user: user,
+        ),
+      );
 
       await _sessionStore.write(session);
-      _profile = SavedAuthProfile(
-        baseUrl: session.baseUrl,
-        email: user.email,
-      );
+      _profile = SavedAuthProfile(baseUrl: session.baseUrl, email: user.email);
       await _profileStore.write(_profile!);
       value = SessionState.authenticated(session);
     } on ApiException catch (error) {
@@ -90,7 +88,8 @@ class SessionController extends ValueNotifier<SessionState> {
       );
       await _profileStore.write(_profile!);
       value = const SessionState.unauthenticated(
-          errorMessage: 'Nie udało się przywrócić zapisanej sesji.');
+        errorMessage: 'Nie udało się przywrócić zapisanej sesji.',
+      );
     }
   }
 
@@ -118,7 +117,8 @@ class SessionController extends ValueNotifier<SessionState> {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Nie udało się teraz wysłać kodu logowania.');
+        errorMessage: 'Nie udało się teraz wysłać kodu logowania.',
+      );
     }
   }
 
@@ -144,7 +144,9 @@ class SessionController extends ValueNotifier<SessionState> {
         displayName: displayName,
       );
       final session = StoredAuthSession(
-          baseUrl: normalizeBaseUrl(baseUrl), session: response);
+        baseUrl: normalizeBaseUrl(baseUrl),
+        session: response,
+      );
 
       await _sessionStore.write(session);
       value = SessionState.authenticated(session);
@@ -152,7 +154,8 @@ class SessionController extends ValueNotifier<SessionState> {
       value = SessionState.unauthenticated(errorMessage: error.message);
     } catch (_) {
       value = const SessionState.unauthenticated(
-          errorMessage: 'Nie udało się teraz zweryfikować kodu.');
+        errorMessage: 'Nie udało się teraz zweryfikować kodu.',
+      );
     }
   }
 
@@ -172,6 +175,33 @@ class SessionController extends ValueNotifier<SessionState> {
 
     await _sessionStore.clear();
     value = const SessionState.unauthenticated();
+  }
+
+  Future<void> updatePhoneNumber(String? phoneNumber) async {
+    final currentSession = value.session;
+
+    if (currentSession == null) {
+      throw const ApiException(
+        'Sesja wygasła. Zaloguj się ponownie.',
+        statusCode: 401,
+      );
+    }
+
+    final updatedUser = await _authRepository.updatePhoneNumber(
+      baseUrl: currentSession.baseUrl,
+      sessionToken: currentSession.session.sessionToken,
+      phoneNumber: phoneNumber,
+    );
+    final updatedSession = StoredAuthSession(
+      baseUrl: currentSession.baseUrl,
+      session: AuthSession(
+        sessionToken: currentSession.session.sessionToken,
+        user: updatedUser,
+      ),
+    );
+
+    await _sessionStore.write(updatedSession);
+    value = SessionState.authenticated(updatedSession);
   }
 
   Future<void> resetLocalData() async {

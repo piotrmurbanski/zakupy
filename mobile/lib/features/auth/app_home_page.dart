@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/collection_sync.dart';
 import '../../core/theme/theme_mode_menu.dart';
 import 'auth_profile_store.dart';
+import 'auth_models.dart';
 import '../lists/archived_lists_page.dart';
 import '../lists/list_detail_page.dart';
 import 'auth_repository.dart';
@@ -16,6 +17,7 @@ class AppHomePage extends StatefulWidget {
   const AppHomePage({
     required this.session,
     required this.authRepository,
+    required this.onUpdatePhoneNumber,
     required this.onLogout,
     required this.onResetLocalData,
     required this.themeMode,
@@ -26,6 +28,7 @@ class AppHomePage extends StatefulWidget {
 
   final StoredAuthSession session;
   final AuthRepository authRepository;
+  final Future<AuthUser> Function(String? phoneNumber) onUpdatePhoneNumber;
   final Future<void> Function() onLogout;
   final Future<void> Function() onResetLocalData;
   final ThemeMode themeMode;
@@ -116,10 +119,8 @@ class _AppHomePageState extends State<AppHomePage> {
   Future<void> _createList() async {
     final draft = await showDialog<_ListDraft>(
       context: context,
-      builder: (context) => const _ListEditorDialog(
-        title: 'Nowa lista',
-        actionLabel: 'Dodaj',
-      ),
+      builder: (context) =>
+          const _ListEditorDialog(title: 'Nowa lista', actionLabel: 'Dodaj'),
     );
 
     if (draft == null) {
@@ -137,11 +138,7 @@ class _AppHomePageState extends State<AppHomePage> {
       }
 
       setState(() {
-        upsertById(
-          target: _lists,
-          value: createdList,
-          idOf: (list) => list.id,
-        );
+        upsertById(target: _lists, value: createdList, idOf: (list) => list.id);
       });
     });
   }
@@ -163,9 +160,9 @@ class _AppHomePageState extends State<AppHomePage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -232,6 +229,8 @@ class _AppHomePageState extends State<AppHomePage> {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (context) => SettingsPage(
+                    currentUser: widget.session.session.user,
+                    onUpdatePhoneNumber: widget.onUpdatePhoneNumber,
                     savedProfile: widget.savedProfile,
                     onResetLocalData: widget.onResetLocalData,
                   ),
@@ -282,11 +281,7 @@ class _AppHomePageState extends State<AppHomePage> {
             else if (_lists.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 32),
-                child: Center(
-                  child: Text(
-                    'Brak list. Dodaj pierwszą.',
-                  ),
-                ),
+                child: Center(child: Text('Brak list. Dodaj pierwszą.')),
               )
             else
               ..._lists.map(
@@ -369,10 +364,7 @@ class _AppHomePageState extends State<AppHomePage> {
 }
 
 class _ListTitle extends StatelessWidget {
-  const _ListTitle({
-    required this.name,
-    required this.plannedFor,
-  });
+  const _ListTitle({required this.name, required this.plannedFor});
 
   final String name;
   final DateTime? plannedFor;
@@ -423,20 +415,14 @@ class _ListTitle extends StatelessWidget {
 }
 
 class _ListDraft {
-  const _ListDraft({
-    required this.name,
-    required this.plannedFor,
-  });
+  const _ListDraft({required this.name, required this.plannedFor});
 
   final String name;
   final DateTime? plannedFor;
 }
 
 class _ListEditorDialog extends StatefulWidget {
-  const _ListEditorDialog({
-    required this.title,
-    required this.actionLabel,
-  });
+  const _ListEditorDialog({required this.title, required this.actionLabel});
 
   final String title;
   final String actionLabel;
@@ -490,7 +476,9 @@ class _ListEditorDialogState extends State<_ListEditorDialog> {
               title: const Text('Dodaj datę do nazwy'),
               subtitle: _plannedFor == null
                   ? null
-                  : Text('Dzisiejsza data: ${_ListTitle._formatDate(_plannedFor!)}'),
+                  : Text(
+                      'Dzisiejsza data: ${_ListTitle._formatDate(_plannedFor!)}',
+                    ),
               value: _plannedFor != null,
               onChanged: (enabled) {
                 setState(() {
