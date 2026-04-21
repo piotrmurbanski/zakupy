@@ -26,9 +26,12 @@ void main() {
 
   test('bootstrap restores a saved session and refreshes the user', () async {
     final staleUser = _buildUser(displayName: 'Old Name');
-    await sessionStore.write(StoredAuthSession(
+    await sessionStore.write(
+      StoredAuthSession(
         baseUrl: 'http://localhost:3000',
-        session: AuthSession(sessionToken: 'saved-token', user: staleUser)));
+        session: AuthSession(sessionToken: 'saved-token', user: staleUser),
+      ),
+    );
     authRepository.currentUser = _buildUser(displayName: 'Fresh Name');
 
     await controller.bootstrap();
@@ -40,59 +43,76 @@ void main() {
     expect(profileStore.savedProfile?.email, 'test@example.com');
   });
 
-  test('bootstrap keeps remembered auth data when a saved session is invalid',
-      () async {
-    await sessionStore.write(StoredAuthSession(
-        baseUrl: 'http://localhost:3000',
-        session:
-            AuthSession(sessionToken: 'expired-token', user: _buildUser())));
-    authRepository.currentUserError =
-        const ApiException('User not found', statusCode: 401);
+  test(
+    'bootstrap keeps remembered auth data when a saved session is invalid',
+    () async {
+      await sessionStore.write(
+        StoredAuthSession(
+          baseUrl: 'http://localhost:3000',
+          session: AuthSession(
+            sessionToken: 'expired-token',
+            user: _buildUser(),
+          ),
+        ),
+      );
+      authRepository.currentUserError = const ApiException(
+        'User not found',
+        statusCode: 401,
+      );
 
-    await controller.bootstrap();
+      await controller.bootstrap();
 
-    expect(controller.value.status, SessionStatus.unauthenticated);
-    expect(controller.value.errorMessage, 'User not found');
-    expect(sessionStore.savedSession, isNull);
-    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
-    expect(profileStore.savedProfile?.email, 'test@example.com');
-  });
+      expect(controller.value.status, SessionStatus.unauthenticated);
+      expect(controller.value.errorMessage, 'User not found');
+      expect(sessionStore.savedSession, isNull);
+      expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+      expect(profileStore.savedProfile?.email, 'test@example.com');
+    },
+  );
 
-  test('bootstrap keeps remembered auth data when the backend is unavailable',
-      () async {
-    await sessionStore.write(StoredAuthSession(
-        baseUrl: 'http://localhost:3000',
-        session:
-            AuthSession(sessionToken: 'saved-token', user: _buildUser())));
-    authRepository.currentUserError = const ApiException('Request timed out');
+  test(
+    'bootstrap keeps remembered auth data when the backend is unavailable',
+    () async {
+      await sessionStore.write(
+        StoredAuthSession(
+          baseUrl: 'http://localhost:3000',
+          session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
+        ),
+      );
+      authRepository.currentUserError = const ApiException('Request timed out');
 
-    await controller.bootstrap();
+      await controller.bootstrap();
 
-    expect(controller.value.status, SessionStatus.unauthenticated);
-    expect(controller.value.errorMessage, 'Request timed out');
-    expect(sessionStore.savedSession, isNotNull);
-    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
-    expect(profileStore.savedProfile?.email, 'test@example.com');
-  });
+      expect(controller.value.status, SessionStatus.unauthenticated);
+      expect(controller.value.errorMessage, 'Request timed out');
+      expect(sessionStore.savedSession, isNotNull);
+      expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+      expect(profileStore.savedProfile?.email, 'test@example.com');
+    },
+  );
 
-  test('requestCode leaves the controller unauthenticated on success',
-      () async {
-    await controller.requestCode(
-      baseUrl: 'http://localhost:3000/',
-      email: 'test@example.com',
-      displayName: 'Tester',
-    );
+  test(
+    'requestCode leaves the controller unauthenticated on success',
+    () async {
+      await controller.requestCode(
+        baseUrl: 'http://localhost:3000/',
+        email: 'test@example.com',
+        displayName: 'Tester',
+      );
 
-    expect(controller.value.status, SessionStatus.unauthenticated);
-    expect(sessionStore.savedSession, isNull);
-    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
-    expect(profileStore.savedProfile?.email, 'test@example.com');
-    expect(authRepository.requestCodeCalls, 1);
-  });
+      expect(controller.value.status, SessionStatus.unauthenticated);
+      expect(sessionStore.savedSession, isNull);
+      expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+      expect(profileStore.savedProfile?.email, 'test@example.com');
+      expect(authRepository.requestCodeCalls, 1);
+    },
+  );
 
   test('verifyCode persists the authenticated session', () async {
     authRepository.verifyCodeResponse = AuthSession(
-        sessionToken: 'new-token', user: _buildUser(displayName: 'Tester'));
+      sessionToken: 'new-token',
+      user: _buildUser(displayName: 'Tester'),
+    );
 
     await controller.verifyCode(
       baseUrl: 'http://localhost:3000/',
@@ -109,32 +129,33 @@ void main() {
     expect(profileStore.savedProfile?.email, 'test@example.com');
   });
 
-  test('verifyCode surfaces backend errors without persisting a session',
-      () async {
-    authRepository.verifyCodeError =
-        const ApiException('Invalid code', statusCode: 401);
+  test(
+    'verifyCode surfaces backend errors without persisting a session',
+    () async {
+      authRepository.verifyCodeError = const ApiException(
+        'Invalid code',
+        statusCode: 401,
+      );
 
-    await controller.verifyCode(
-      baseUrl: 'http://localhost:3000',
-      email: 'taken@example.com',
-      code: '000000',
-      displayName: 'Taken User',
-    );
+      await controller.verifyCode(
+        baseUrl: 'http://localhost:3000',
+        email: 'taken@example.com',
+        code: '000000',
+        displayName: 'Taken User',
+      );
 
-    expect(controller.value.status, SessionStatus.unauthenticated);
-    expect(controller.value.errorMessage, 'Invalid code');
-    expect(sessionStore.savedSession, isNull);
-    expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
-    expect(profileStore.savedProfile?.email, 'taken@example.com');
-  });
+      expect(controller.value.status, SessionStatus.unauthenticated);
+      expect(controller.value.errorMessage, 'Invalid code');
+      expect(sessionStore.savedSession, isNull);
+      expect(profileStore.savedProfile?.baseUrl, 'http://localhost:3000');
+      expect(profileStore.savedProfile?.email, 'taken@example.com');
+    },
+  );
 
   test('logout clears the local session and revokes remotely', () async {
     final session = StoredAuthSession(
       baseUrl: 'http://localhost:3000',
-      session: AuthSession(
-        sessionToken: 'session-token',
-        user: _buildUser(),
-      ),
+      session: AuthSession(sessionToken: 'session-token', user: _buildUser()),
     );
     await sessionStore.write(session);
     controller.value = SessionState.authenticated(session);
@@ -148,10 +169,12 @@ void main() {
   });
 
   test('resetLocalData clears both the saved session and profile', () async {
-    await sessionStore.write(StoredAuthSession(
-      baseUrl: 'http://localhost:3000',
-      session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
-    ));
+    await sessionStore.write(
+      StoredAuthSession(
+        baseUrl: 'http://localhost:3000',
+        session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
+      ),
+    );
     await profileStore.write(
       const SavedAuthProfile(
         baseUrl: 'http://localhost:3000',
@@ -166,34 +189,117 @@ void main() {
     expect(profileStore.savedProfile, isNull);
   });
 
-  test('requestCode returns a Polish fallback when an unexpected error occurs',
-      () async {
-    authRepository.throwUnexpectedOnRequestCode = true;
+  test(
+    'requestCode returns a Polish fallback when an unexpected error occurs',
+    () async {
+      authRepository.throwUnexpectedOnRequestCode = true;
 
-    await controller.requestCode(
-      baseUrl: 'http://localhost:3000/',
-      email: 'test@example.com',
-    );
+      await controller.requestCode(
+        baseUrl: 'http://localhost:3000/',
+        email: 'test@example.com',
+      );
 
-    expect(
-      controller.value.errorMessage,
-      'Nie udało się teraz wysłać kodu logowania.',
+      expect(
+        controller.value.errorMessage,
+        'Nie udało się teraz wysłać kodu logowania.',
+      );
+    },
+  );
+
+  test(
+    'verifyCode returns a Polish fallback when an unexpected error occurs',
+    () async {
+      authRepository.throwUnexpectedOnVerifyCode = true;
+
+      await controller.verifyCode(
+        baseUrl: 'http://localhost:3000/',
+        email: 'test@example.com',
+        code: '123456',
+      );
+
+      expect(
+        controller.value.errorMessage,
+        'Nie udało się teraz zweryfikować kodu.',
+      );
+    },
+  );
+
+  test('updatePhoneNumber refreshes the authenticated session user', () async {
+    final session = StoredAuthSession(
+      baseUrl: 'http://localhost:3000',
+      session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
     );
+    await sessionStore.write(session);
+    controller.value = SessionState.authenticated(session);
+    authRepository.updatedUser = _buildUser(phoneNumber: '+48123123123');
+
+    await controller.updatePhoneNumber('+48 123 123 123');
+
+    expect(controller.value.status, SessionStatus.authenticated);
+    expect(controller.value.session?.session.user.phoneNumber, '+48123123123');
+    expect(sessionStore.savedSession?.session.user.phoneNumber, '+48123123123');
+    expect(authRepository.lastUpdatedPhoneNumber, '+48 123 123 123');
   });
 
-  test('verifyCode returns a Polish fallback when an unexpected error occurs',
-      () async {
-    authRepository.throwUnexpectedOnVerifyCode = true;
-
-    await controller.verifyCode(
-      baseUrl: 'http://localhost:3000/',
-      email: 'test@example.com',
-      code: '123456',
+  test('updatePhoneNumber can clear the saved phone number', () async {
+    final session = StoredAuthSession(
+      baseUrl: 'http://localhost:3000',
+      session: AuthSession(
+        sessionToken: 'saved-token',
+        user: _buildUser(phoneNumber: '+48123123123'),
+      ),
     );
+    await sessionStore.write(session);
+    controller.value = SessionState.authenticated(session);
+    authRepository.updatedUser = _buildUser(phoneNumber: null);
 
-    expect(
-      controller.value.errorMessage,
-      'Nie udało się teraz zweryfikować kodu.',
+    await controller.updatePhoneNumber(null);
+
+    expect(controller.value.session?.session.user.phoneNumber, isNull);
+    expect(sessionStore.savedSession?.session.user.phoneNumber, isNull);
+    expect(authRepository.lastUpdatedPhoneNumber, isNull);
+  });
+
+  test(
+    'updatePhoneNumber surfaces backend errors and keeps the session',
+    () async {
+      final session = StoredAuthSession(
+        baseUrl: 'http://localhost:3000',
+        session: AuthSession(sessionToken: 'saved-token', user: _buildUser()),
+      );
+      await sessionStore.write(session);
+      controller.value = SessionState.authenticated(session);
+      authRepository.updatePhoneNumberError = const ApiException(
+        'Nieprawidłowy numer telefonu',
+        statusCode: 400,
+      );
+
+      await expectLater(
+        controller.updatePhoneNumber('123'),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.message,
+            'message',
+            'Nieprawidłowy numer telefonu',
+          ),
+        ),
+      );
+
+      expect(controller.value.session?.session.user.phoneNumber, isNull);
+      expect(sessionStore.savedSession?.session.user.phoneNumber, isNull);
+    },
+  );
+
+  test('updatePhoneNumber rejects missing authenticated session', () async {
+    await expectLater(
+      controller.updatePhoneNumber('+48123123123'),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
     );
   });
 }
@@ -237,14 +343,17 @@ class _InMemoryProfileStore extends InMemoryAuthProfileStore {
 class _FakeAuthRepository extends AuthRepository {
   AuthSession? verifyCodeResponse;
   AuthUser? currentUser;
+  AuthUser? updatedUser;
   ApiException? requestCodeError;
   ApiException? verifyCodeError;
   ApiException? currentUserError;
+  ApiException? updatePhoneNumberError;
   bool throwUnexpectedOnRequestCode = false;
   bool throwUnexpectedOnVerifyCode = false;
   int requestCodeCalls = 0;
   int verifyCodeCalls = 0;
   int logoutCalls = 0;
+  String? lastUpdatedPhoneNumber;
 
   @override
   Future<void> requestCode({
@@ -285,13 +394,30 @@ class _FakeAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<AuthUser> fetchCurrentUser(
-      {required String baseUrl, required String sessionToken}) async {
+  Future<AuthUser> fetchCurrentUser({
+    required String baseUrl,
+    required String sessionToken,
+  }) async {
     if (currentUserError != null) {
       throw currentUserError!;
     }
 
     return currentUser ?? _buildUser();
+  }
+
+  @override
+  Future<AuthUser> updatePhoneNumber({
+    required String baseUrl,
+    required String sessionToken,
+    required String? phoneNumber,
+  }) async {
+    lastUpdatedPhoneNumber = phoneNumber;
+
+    if (updatePhoneNumberError != null) {
+      throw updatePhoneNumberError!;
+    }
+
+    return updatedUser ?? _buildUser(phoneNumber: phoneNumber);
   }
 
   @override
@@ -303,11 +429,13 @@ class _FakeAuthRepository extends AuthRepository {
   }
 }
 
-AuthUser _buildUser({String displayName = 'Test User'}) {
+AuthUser _buildUser({String displayName = 'Test User', String? phoneNumber}) {
   return AuthUser(
-      id: 'user_1',
-      email: 'test@example.com',
-      displayName: displayName,
-      createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
-      updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'));
+    id: 'user_1',
+    email: 'test@example.com',
+    displayName: displayName,
+    phoneNumber: phoneNumber,
+    createdAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
+    updatedAt: DateTime.parse('2026-03-29T10:00:00.000Z'),
+  );
 }

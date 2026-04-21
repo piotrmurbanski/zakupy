@@ -10,35 +10,27 @@ String normalizeBaseUrl(String baseUrl) {
 }
 
 class ApiClient {
-  ApiClient({
-    required String baseUrl,
-    String accessToken = '',
-    Dio? dio,
-  })  : baseUrl = normalizeBaseUrl(baseUrl),
-        accessToken = accessToken.trim(),
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: normalizeBaseUrl(baseUrl),
-                responseType: ResponseType.json,
-              ),
-            );
+  ApiClient({required String baseUrl, String accessToken = '', Dio? dio})
+    : baseUrl = normalizeBaseUrl(baseUrl),
+      accessToken = accessToken.trim(),
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: normalizeBaseUrl(baseUrl),
+              responseType: ResponseType.json,
+            ),
+          );
 
   final String baseUrl;
   final String accessToken;
   final Dio _dio;
 
   ApiClient withAccessToken(String nextAccessToken) {
-    return ApiClient(
-      baseUrl: baseUrl,
-      accessToken: nextAccessToken,
-    );
+    return ApiClient(baseUrl: baseUrl, accessToken: nextAccessToken);
   }
 
-  Future<void> requestCode({
-    required String email,
-    String? displayName,
-  }) {
+  Future<void> requestCode({required String email, String? displayName}) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/auth/request-code',
@@ -90,6 +82,18 @@ class ApiClient {
     });
   }
 
+  Future<AuthUser> updateCurrentUser({required String? phoneNumber}) {
+    return _guard(() async {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/auth/me',
+        data: {'phoneNumber': phoneNumber?.trim()},
+        options: _authOptions(),
+      );
+
+      return AuthUser.fromJson(_readObject(response.data, 'user'));
+    });
+  }
+
   Future<void> logout() {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -107,9 +111,7 @@ class ApiClient {
     });
   }
 
-  Future<List<ShoppingListSummary>> fetchLists({
-    bool includeArchived = false,
-  }) {
+  Future<List<ShoppingListSummary>> fetchLists({bool includeArchived = false}) {
     return _guard(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/lists',
@@ -190,9 +192,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists/$listId/members',
-        data: {
-          'email': email.trim(),
-        },
+        data: {'email': email.trim()},
         options: _authOptions(),
       );
 
@@ -290,9 +290,7 @@ class ApiClient {
       return const <String, dynamic>{};
     }
 
-    return <String, dynamic>{
-      'Authorization': 'Bearer $accessToken',
-    };
+    return <String, dynamic>{'Authorization': 'Bearer $accessToken'};
   }
 
   Options _authOptions() {
@@ -326,10 +324,7 @@ class ApiClient {
     );
   }
 
-  static String _readString(
-    Map<String, dynamic>? payload,
-    String key,
-  ) {
+  static String _readString(Map<String, dynamic>? payload, String key) {
     final value = payload?[key];
 
     if (value is String) {
@@ -365,10 +360,7 @@ class ApiException implements Exception {
     if (data is Map<String, dynamic>) {
       final message = data['message'];
       if (message is String && message.trim().isNotEmpty) {
-        return ApiException(
-          message,
-          statusCode: error.response?.statusCode,
-        );
+        return ApiException(message, statusCode: error.response?.statusCode);
       }
     }
 
@@ -447,7 +439,8 @@ class ShoppingListSummary {
       plannedFor: json['plannedFor'] == null
           ? null
           : DateTime.parse(json['plannedFor'] as String),
-      isArchived: json['isArchived'] as bool? ??
+      isArchived:
+          json['isArchived'] as bool? ??
           ((json['archivedAt'] as String?) != null),
       archivedAt: json['archivedAt'] == null
           ? null
@@ -708,15 +701,12 @@ class PendingListInvitation {
 }
 
 class ShareListResult {
-  const ShareListResult._({
-    this.member,
-    this.invitation,
-  });
+  const ShareListResult._({this.member, this.invitation});
 
   const ShareListResult.member(ListMember member) : this._(member: member);
 
   const ShareListResult.invitation(PendingListInvitation invitation)
-      : this._(invitation: invitation);
+    : this._(invitation: invitation);
 
   final ListMember? member;
   final PendingListInvitation? invitation;
