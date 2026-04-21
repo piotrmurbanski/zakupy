@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/item_icon.dart';
 import '../../core/network/api_client.dart';
@@ -48,6 +49,7 @@ class ListDetailPage extends StatefulWidget {
     this.canManageList = false,
     this.onUnauthorized,
     this.shareEmailHistoryStore,
+    this.urlLauncher,
     super.key,
   });
 
@@ -59,6 +61,7 @@ class ListDetailPage extends StatefulWidget {
   final bool canManageList;
   final Future<void> Function()? onUnauthorized;
   final ShareEmailHistoryStore? shareEmailHistoryStore;
+  final Future<bool> Function(Uri uri)? urlLauncher;
 
   @override
   State<ListDetailPage> createState() => _ListDetailPageState();
@@ -73,11 +76,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
   late String _listName;
   DateTime? _plannedFor;
+  ListSharingMetadata? _sharing;
   late final ShareEmailHistoryStore _shareEmailHistoryStore;
   bool _isLoading = true;
   bool _isSharing = false;
+  bool _isLaunchingWhatsApp = false;
   bool _didMutateList = false;
   String? _errorMessage;
+  _WhatsAppDraft? _lastWhatsAppDraft;
   int _temporaryItemCounter = 0;
   Timer? _refreshTimer;
 
@@ -90,10 +96,12 @@ class _ListDetailPageState extends State<ListDetailPage> {
     _plannedFor = widget.plannedFor;
     _reloadItems();
     _reloadSuggestions();
+    _reloadListDetail(silent: true);
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         _reloadItems(silent: true);
         _reloadSuggestions(silent: true);
+        _reloadListDetail(silent: true);
       }
     });
   }
@@ -185,6 +193,41 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
+  Future<void> _reloadListDetail({bool silent = false}) async {
+    if (!widget.canManageList) {
+      return;
+    }
+
+    try {
+      final detail = await widget.apiClient.fetchListDetail(widget.listId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _listName = detail.list.name;
+        _plannedFor = detail.list.plannedFor;
+        _sharing = detail.sharing;
+      });
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Nie udało się pobrać danych udostępniania: ${error.message}',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _createItemFromDraft(ItemDraft draft) async {
     final temporaryId = _nextTemporaryItemId();
     final optimisticItem = _buildOptimisticItem(
@@ -195,6 +238,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     setState(() {
       _didMutateList = true;
+      _lastWhatsAppDraft = _WhatsAppDraft.added(_describeDraft(draft));
       _pendingItemIds.add(temporaryId);
       _pendingItemMutations[temporaryId] = _PendingItemMutation.create(
         optimisticItem: optimisticItem,
@@ -291,6 +335,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     setState(() {
       _didMutateList = true;
+      _lastWhatsAppDraft =
+          _WhatsAppDraft.updated(_describeItem(optimisticItem));
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -368,6 +414,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     setState(() {
       _didMutateList = true;
+      _lastWhatsAppDraft = _WhatsAppDraft.updated(
+        _describeItem(previousItem.copyWith(isChecked: checked)),
+      );
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -459,6 +508,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     setState(() {
       _didMutateList = true;
+      _lastWhatsAppDraft =
+          _WhatsAppDraft.updated(_describeItem(optimisticItem));
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.update(
         previousItem: previousItem,
@@ -594,6 +645,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
 
     setState(() {
       _didMutateList = true;
+      _lastWhatsAppDraft = _WhatsAppDraft.removed(_describeItem(previousItem));
       _pendingItemIds.add(item.id);
       _pendingItemMutations[item.id] = _PendingItemMutation.delete(
         previousItem: previousItem,
@@ -671,6 +723,8 @@ class _ListDetailPageState extends State<ListDetailPage> {
           ? 'Udostępniono ${result.member!.user.email}.'
           : 'Udostępniono ${result.invitation!.email}. Lista pojawi się po zalogowaniu.';
 
+      unawaited(_reloadListDetail(silent: true));
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -734,6 +788,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         _didMutateList = true;
         _listName = updatedList.name;
         _plannedFor = updatedList.plannedFor;
+        _lastWhatsAppDraft = _WhatsAppDraft.updatedList(updatedList.name);
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -790,6 +845,16 @@ class _ListDetailPageState extends State<ListDetailPage> {
           ),
           actions: [
             IconButton(
+              onPressed: _canNotifyOnWhatsApp ? _notifyOnWhatsApp : null,
+              icon: _isLaunchingWhatsApp
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chat_outlined),
+              tooltip: 'Powiadom przez WhatsApp',
+            ),
+            IconButton(
               onPressed: () => _reloadItems(),
               icon: const Icon(Icons.refresh),
               tooltip: 'Odśwież',
@@ -825,6 +890,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
           onRefresh: () async {
             await _reloadItems(silent: true);
             await _reloadSuggestions(silent: true);
+            await _reloadListDetail(silent: true);
           },
           child: _buildBody(context),
         ),
@@ -989,6 +1055,113 @@ class _ListDetailPageState extends State<ListDetailPage> {
     return left.createdAt.compareTo(right.createdAt);
   }
 
+  bool get _canNotifyOnWhatsApp =>
+      !_isLaunchingWhatsApp && _selectedWhatsAppContact != null;
+
+  ListMember? get _selectedWhatsAppContact {
+    for (final member in _sharing?.memberContacts ?? const <ListMember>[]) {
+      if (member.user.whatsappEligible &&
+          (member.user.phoneNumber?.trim().isNotEmpty ?? false)) {
+        return member;
+      }
+    }
+
+    return null;
+  }
+
+  String _describeDraft(ItemDraft draft) {
+    return _buildItemDescription(
+      name: draft.name,
+      quantity: draft.quantity,
+      comment: draft.comment,
+    );
+  }
+
+  String _describeItem(ShoppingListItem item) {
+    return _buildItemDescription(
+      name: item.name,
+      quantity: item.quantity,
+      comment: item.comment,
+    );
+  }
+
+  String _buildItemDescription({
+    required String name,
+    required int quantity,
+    required String? comment,
+  }) {
+    final quantityLabel = quantity > 1 ? '$name ($quantity)' : name;
+    final trimmedComment = comment?.trim();
+
+    if (trimmedComment == null || trimmedComment.isEmpty) {
+      return quantityLabel;
+    }
+
+    return '$quantityLabel, $trimmedComment';
+  }
+
+  Future<void> _notifyOnWhatsApp() async {
+    final member = _selectedWhatsAppContact;
+    if (member == null) {
+      return;
+    }
+
+    final normalizedPhoneNumber = member.user.phoneNumber?.replaceAll(
+      RegExp(r'\D'),
+      '',
+    );
+    if (normalizedPhoneNumber == null || normalizedPhoneNumber.isEmpty) {
+      return;
+    }
+
+    final message = (_lastWhatsAppDraft ?? _WhatsAppDraft.generic()).toMessage(
+      listName: _listName,
+      recipientName: member.user.displayName,
+    );
+    final uri = Uri(
+      scheme: 'https',
+      host: 'wa.me',
+      path: '/$normalizedPhoneNumber',
+      queryParameters: <String, String>{'text': message},
+    );
+
+    setState(() {
+      _isLaunchingWhatsApp = true;
+    });
+
+    try {
+      final launch = widget.urlLauncher ??
+          (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
+      final didLaunch = await launch(uri);
+
+      if (!didLaunch && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nie udało się otworzyć WhatsApp. Sprawdź, czy aplikacja jest zainstalowana.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nie udało się otworzyć WhatsApp. Sprawdź, czy aplikacja jest zainstalowana.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLaunchingWhatsApp = false;
+        });
+      }
+    }
+  }
+
   int _nextSortOrder() {
     if (_items.isEmpty) {
       return 0;
@@ -1146,6 +1319,47 @@ class _ListDetailPageState extends State<ListDetailPage> {
 }
 
 enum _ListAction { share, rename }
+
+enum _WhatsAppDraftKind { generic, added, updated, removed, updatedList }
+
+class _WhatsAppDraft {
+  const _WhatsAppDraft._(this.kind, this.subject);
+
+  const _WhatsAppDraft.generic() : this._(_WhatsAppDraftKind.generic, null);
+
+  const _WhatsAppDraft.added(String subject)
+      : this._(_WhatsAppDraftKind.added, subject);
+
+  const _WhatsAppDraft.updated(String subject)
+      : this._(_WhatsAppDraftKind.updated, subject);
+
+  const _WhatsAppDraft.removed(String subject)
+      : this._(_WhatsAppDraftKind.removed, subject);
+
+  const _WhatsAppDraft.updatedList(String listName)
+      : this._(_WhatsAppDraftKind.updatedList, listName);
+
+  final _WhatsAppDraftKind kind;
+  final String? subject;
+
+  String toMessage({
+    required String listName,
+    required String recipientName,
+  }) {
+    switch (kind) {
+      case _WhatsAppDraftKind.added:
+        return 'Hej $recipientName, dodalem do listy "$listName": $subject. Zerknij prosze.';
+      case _WhatsAppDraftKind.updated:
+        return 'Hej $recipientName, zaktualizowalem na liscie "$listName": $subject. Zerknij prosze.';
+      case _WhatsAppDraftKind.removed:
+        return 'Hej $recipientName, usunalem z listy "$listName": $subject. Zerknij prosze.';
+      case _WhatsAppDraftKind.updatedList:
+        return 'Hej $recipientName, zaktualizowalem szczegoly listy "$subject". Zerknij prosze.';
+      case _WhatsAppDraftKind.generic:
+        return 'Hej $recipientName, dodalem wazna aktualizacje do listy "$listName". Zerknij prosze.';
+    }
+  }
+}
 
 enum _PendingItemMutationType { create, update, delete }
 
