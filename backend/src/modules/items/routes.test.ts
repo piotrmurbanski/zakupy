@@ -207,8 +207,13 @@ async function buildApp(
       findFirst: async ({
         where
       }: {
-        where: { userId: string; normalizedName: string; normalizedComment: string };
+        where: { userId: string; id?: string; normalizedName?: string; normalizedComment?: string };
       }) => {
+        if (where.id) {
+          const suggestion = suggestionsById.get(where.id) ?? null;
+          return suggestion?.userId === where.userId ? suggestion : null;
+        }
+
         return (
           [...suggestionsById.values()].find(
             (suggestion) =>
@@ -280,6 +285,16 @@ async function buildApp(
 
         suggestionsById.set(where.id, updatedSuggestion);
         return updatedSuggestion;
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const suggestion = suggestionsById.get(where.id);
+
+        if (!suggestion) {
+          throw new Error('Suggestion not found');
+        }
+
+        suggestionsById.delete(where.id);
+        return suggestion;
       }
     },
     shoppingList: {
@@ -458,6 +473,50 @@ test('GET /items/suggestions returns ranked suggestions for the user', async () 
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Milk', 'Batteries']);
     assert.equal(response.json().items[0].iconKey, 'eggs');
+  } finally {
+    await app.close();
+  }
+});
+
+test('DELETE /items/suggestions/:suggestionId removes the user suggestion', async () => {
+  const user = buildUser();
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id })]
+  ]);
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/items/suggestions/suggestion_1',
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(suggestions.size, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('DELETE /items/suggestions/:suggestionId returns 404 for another user suggestion', async () => {
+  const user = buildUser({ id: 'user_1' });
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: 'user_2' })]
+  ]);
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/items/suggestions/suggestion_1',
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(suggestions.size, 1);
   } finally {
     await app.close();
   }

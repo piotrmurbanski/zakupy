@@ -154,8 +154,9 @@ type ItemRoutesDeps = {
       findFirst(args: {
         where: {
           userId: string;
-          normalizedName: string;
-          normalizedComment: string;
+          id?: string;
+          normalizedName?: string;
+          normalizedComment?: string;
         };
       }): Promise<ItemSuggestionRecord | null>;
       create(args: {
@@ -179,6 +180,9 @@ type ItemRoutesDeps = {
           usageCount?: { increment: number };
           lastUsedAt?: Date;
         };
+      }): Promise<ItemSuggestionRecord>;
+      delete(args: {
+        where: { id: string };
       }): Promise<ItemSuggestionRecord>;
     };
     shoppingList: ListRepository;
@@ -408,6 +412,34 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
       return {
         items: suggestions.map(toSuggestionResponse)
       };
+    });
+
+    app.delete('/items/suggestions/:suggestionId', async (request, reply) => {
+      const user = await authenticateRequest(deps.prisma, request, reply);
+
+      if (!user) {
+        return;
+      }
+
+      const { suggestionId } = request.params as { suggestionId: string };
+      const suggestion = await deps.prisma.itemSuggestion.findFirst({
+        where: {
+          id: suggestionId,
+          userId: user.id
+        }
+      });
+
+      if (!suggestion) {
+        return reply.notFound('Suggestion not found');
+      }
+
+      await deps.prisma.itemSuggestion.delete({
+        where: {
+          id: suggestion.id
+        }
+      });
+
+      return reply.status(204).send();
     });
 
     app.get('/lists/:listId/items', async (request, reply) => {

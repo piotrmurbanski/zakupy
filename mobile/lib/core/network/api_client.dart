@@ -276,6 +276,15 @@ class ApiClient {
     });
   }
 
+  Future<void> deleteItemSuggestion(String suggestionId) {
+    return _guard(() async {
+      await _dio.delete<void>(
+        '/items/suggestions/$suggestionId',
+        options: _authOptions(),
+      );
+    });
+  }
+
   Future<ShoppingListItem> createItem(String listId, ItemDraft draft) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(

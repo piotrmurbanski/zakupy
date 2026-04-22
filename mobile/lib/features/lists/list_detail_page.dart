@@ -689,6 +689,71 @@ class _ListDetailPageState extends State<ListDetailPage> {
     }
   }
 
+  Future<void> _confirmDeleteSuggestion(ItemSuggestion suggestion) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final suggestionLabel =
+            suggestion.comment == null || suggestion.comment!.isEmpty
+                ? suggestion.name
+                : '${suggestion.name} • ${suggestion.comment}';
+        return AlertDialog(
+          title: const Text('Usunąć sugestię?'),
+          content: Text(
+            'Usunąć sugestię „$suggestionLabel” z Twojej listy podpowiedzi?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Usuń'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    try {
+      await widget.apiClient.deleteItemSuggestion(suggestion.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _suggestions.removeWhere((entry) => entry.id == suggestion.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Usunięto sugestię „${suggestion.name}”.'),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.isUnauthorized && widget.onUnauthorized != null) {
+        await widget.onUnauthorized!();
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nie udało się usunąć sugestii: ${error.message}'),
+        ),
+      );
+    }
+  }
+
   Future<void> _shareList() async {
     if (_isSharing) {
       return;
@@ -1282,7 +1347,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Najczęściej dodawane produkty',
+          'Najczęściej dodawane produkty. Przytrzymaj sugestię, aby ją usunąć.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -1294,21 +1359,24 @@ class _ListDetailPageState extends State<ListDetailPage> {
           children: _suggestions.map(
             (suggestion) {
               final iconOption = itemIconOptionForKey(suggestion.iconKey);
-              return ActionChip(
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.6),
-                avatar: Tooltip(
-                  message: iconOption.label,
-                  child: buildItemIconBadge(iconOption, size: 24),
+              return GestureDetector(
+                onLongPress: () => _confirmDeleteSuggestion(suggestion),
+                child: ActionChip(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.6),
+                  avatar: Tooltip(
+                    message: iconOption.label,
+                    child: buildItemIconBadge(iconOption, size: 24),
+                  ),
+                  label: Text(
+                    suggestion.comment == null || suggestion.comment!.isEmpty
+                        ? suggestion.name
+                        : '${suggestion.name} • ${suggestion.comment}',
+                  ),
+                  onPressed: () => _addSuggestion(suggestion),
                 ),
-                label: Text(
-                  suggestion.comment == null || suggestion.comment!.isEmpty
-                      ? suggestion.name
-                      : '${suggestion.name} • ${suggestion.comment}',
-                ),
-                onPressed: () => _addSuggestion(suggestion),
               );
             },
           ).toList(growable: false),
