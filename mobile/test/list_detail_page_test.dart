@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zakupy_mobile/core/models/item_icon.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_detail_page.dart';
 import 'package:zakupy_mobile/features/lists/share_list_dialog.dart';
@@ -458,6 +457,37 @@ void main() {
     expect(find.text('Milk'), findsOneWidget);
   });
 
+  testWidgets('removes a suggestion after long press confirmation', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[],
+      suggestions: <ItemSuggestion>[
+        ItemSuggestion(
+          id: 'suggestion_milk',
+          name: 'Milk',
+          comment: '2%',
+          iconKey: 'eggs',
+          usageCount: 12,
+          lastUsedAt: DateTime.utc(2026, 4, 10, 12),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.widgetWithText(ActionChip, 'Milk • 2%'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Usunąć sugestię?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Usuń'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.deletedSuggestionIds, ['suggestion_milk']);
+    expect(find.text('Milk • 2%'), findsNothing);
+  });
+
   testWidgets('increments item quantity on tap', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -679,7 +709,6 @@ class _FakeApiClient extends ApiClient {
     this.createItemHandler,
     this.updateItemHandler,
     this.updateListHandler,
-    this.archiveListHandler,
     this.deleteItemHandler,
     this.fetchItemsHandler,
     this.shareListHandler,
@@ -704,7 +733,6 @@ class _FakeApiClient extends ApiClient {
     required String name,
     DateTime? plannedFor,
   })? updateListHandler;
-  final Future<ShoppingListSummary> Function(String listId)? archiveListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
   final Future<ShareListResult> Function(String listId, String email)?
       shareListHandler;
@@ -716,6 +744,7 @@ class _FakeApiClient extends ApiClient {
   int archiveListCalls = 0;
   ItemDraft? lastCreatedDraft;
   ItemDraft? lastUpdatedDraft;
+  final List<String> deletedSuggestionIds = <String>[];
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
@@ -818,10 +847,6 @@ class _FakeApiClient extends ApiClient {
   Future<ShoppingListSummary> archiveList(String listId) async {
     archiveListCalls += 1;
 
-    if (archiveListHandler != null) {
-      return archiveListHandler!(listId);
-    }
-
     return ShoppingListSummary(
       id: listId,
       name: 'Weekly groceries',
@@ -852,6 +877,12 @@ class _FakeApiClient extends ApiClient {
     }
 
     items.removeWhere((item) => item.id == itemId);
+  }
+
+  @override
+  Future<void> deleteItemSuggestion(String suggestionId) async {
+    deletedSuggestionIds.add(suggestionId);
+    suggestions.removeWhere((suggestion) => suggestion.id == suggestionId);
   }
 
   @override
