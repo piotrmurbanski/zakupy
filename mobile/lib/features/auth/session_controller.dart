@@ -177,7 +177,7 @@ class SessionController extends ValueNotifier<SessionState> {
     value = const SessionState.unauthenticated();
   }
 
-  Future<void> updatePhoneNumber(String? phoneNumber) async {
+  Future<AuthUser> updatePhoneNumber(String? phoneNumber) async {
     final currentSession = value.session;
 
     if (currentSession == null) {
@@ -202,6 +202,7 @@ class SessionController extends ValueNotifier<SessionState> {
 
     await _sessionStore.write(updatedSession);
     value = SessionState.authenticated(updatedSession);
+    return updatedUser;
   }
 
   Future<void> resetLocalData() async {
