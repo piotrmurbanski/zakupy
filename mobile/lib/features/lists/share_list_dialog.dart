@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 abstract class ShareEmailHistoryStore {
   Future<List<String>> readRecentEmails();
   Future<void> rememberEmail(String email);
+  Future<void> removeEmail(String email);
 }
 
 class SecureShareEmailHistoryStore implements ShareEmailHistoryStore {
@@ -75,6 +76,29 @@ class SecureShareEmailHistoryStore implements ShareEmailHistoryStore {
     );
   }
 
+  @override
+  Future<void> removeEmail(String email) async {
+    final normalized = _normalizeEmail(email);
+
+    if (normalized == null) {
+      return;
+    }
+
+    final next = (await readRecentEmails())
+        .where((entry) => entry != normalized)
+        .toList(growable: false);
+
+    if (next.isEmpty) {
+      await _storage.delete(key: _key);
+      return;
+    }
+
+    await _storage.write(
+      key: _key,
+      value: jsonEncode({'emails': next}),
+    );
+  }
+
   String? _normalizeEmail(String email) {
     final normalized = email.trim().toLowerCase();
 
@@ -120,6 +144,18 @@ class InMemoryShareEmailHistoryStore implements ShareEmailHistoryStore {
       normalized,
       ..._emails.where((entry) => entry != normalized),
     ].take(SecureShareEmailHistoryStore._maxEmails).toList(growable: false);
+  }
+
+  @override
+  Future<void> removeEmail(String email) async {
+    final normalized = email.trim().toLowerCase();
+
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    _emails =
+        _emails.where((entry) => entry != normalized).toList(growable: false);
   }
 }
 
@@ -187,6 +223,44 @@ class _ShareListDialogState extends State<_ShareListDialog> {
     });
   }
 
+  Future<void> _confirmRemoveEmail(String email) async {
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Usunąć adres?'),
+          content: Text('Usunąć "$email" z ostatnich adresów?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Usuń'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove != true) {
+      return;
+    }
+
+    await widget.historyStore.removeEmail(email);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _recentEmails = _recentEmails
+          .where((entry) => entry != email)
+          .toList(growable: false);
+    });
+  }
+
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -249,9 +323,12 @@ class _ShareListDialogState extends State<_ShareListDialog> {
                   runSpacing: 8,
                   children: _recentEmails
                       .map(
-                        (email) => ActionChip(
-                          label: Text(email),
-                          onPressed: () => _fillEmail(email),
+                        (email) => GestureDetector(
+                          onLongPress: () => _confirmRemoveEmail(email),
+                          child: ActionChip(
+                            label: Text(email),
+                            onPressed: () => _fillEmail(email),
+                          ),
                         ),
                       )
                       .toList(growable: false),

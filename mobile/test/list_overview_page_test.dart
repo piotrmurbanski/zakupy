@@ -44,7 +44,8 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) =>
-            widget is Text && (widget.data?.startsWith('Aktualizacja ') ?? false),
+            widget is Text &&
+            (widget.data?.startsWith('Aktualizacja ') ?? false),
       ),
       findsOneWidget,
     );
@@ -153,6 +154,8 @@ void main() {
               id: 'user_2',
               email: email,
               displayName: 'Second User',
+              phoneNumber: null,
+              whatsappEligible: false,
             ),
           ),
         );
@@ -207,6 +210,8 @@ void main() {
               id: 'user_2',
               email: email,
               displayName: 'Second User',
+              phoneNumber: null,
+              whatsappEligible: false,
             ),
           ),
         );
@@ -317,6 +322,8 @@ class _FakeApiClient extends ApiClient {
           id: 'user_$shareListCalls',
           email: email,
           displayName: 'Second User',
+          phoneNumber: null,
+          whatsappEligible: false,
         ),
       ),
     );
