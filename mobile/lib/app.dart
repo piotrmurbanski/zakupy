@@ -51,6 +51,7 @@ class _ZakupyAppState extends State<ZakupyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Listek',
+      debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
       themeMode: _themeMode,

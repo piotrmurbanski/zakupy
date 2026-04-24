@@ -194,10 +194,6 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   Future<void> _reloadListDetail({bool silent = false}) async {
-    if (!widget.canManageList) {
-      return;
-    }
-
     try {
       final detail = await widget.apiClient.fetchListDetail(widget.listId);
 

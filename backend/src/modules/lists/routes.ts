@@ -349,10 +349,11 @@ function parseIncludeArchived(value: unknown) {
   return value === true || value === 'true' || value === '1' || value === 1;
 }
 
-async function buildOwnerSharingResponse(
+async function buildSharingResponse(
   deps: ListRoutesDeps,
   listId: string,
-  ownerUserId: string,
+  currentUserId: string,
+  includePendingInvitations: boolean,
 ): Promise<SharingResponse> {
   const [members, invitations] = await Promise.all([
     deps.prisma.listMember.findMany({
@@ -363,16 +364,18 @@ async function buildOwnerSharingResponse(
         user: true
       }
     }),
-    deps.prisma.listInvitation.findMany({
-      where: {
-        listId,
-        claimedAt: null
-      }
-    })
+    includePendingInvitations
+      ? deps.prisma.listInvitation.findMany({
+          where: {
+            listId,
+            claimedAt: null
+          }
+        })
+      : Promise.resolve([])
   ]);
 
   const memberContacts = members
-    .filter((member) => member.userId !== ownerUserId)
+    .filter((member) => member.userId !== currentUserId)
     .map((member) => {
       if (!member.user) {
         throw new Error('Expected included user on list member lookup');
@@ -473,9 +476,7 @@ export function createListRoutes(deps: ListRoutesDeps = defaultDeps): FastifyPlu
         list: toListResponse(list)
       };
 
-      if (list.ownerUserId === user.id) {
-        response.sharing = await buildOwnerSharingResponse(deps, list.id, user.id);
-      }
+      response.sharing = await buildSharingResponse(deps, list.id, user.id, list.ownerUserId === user.id);
 
       return response;
     });

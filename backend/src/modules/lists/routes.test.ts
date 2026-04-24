@@ -630,7 +630,7 @@ test('POST /lists/:listId/members adds an editor by email for the owner', async 
   }
 });
 
-test('GET /lists/:listId returns owner-only sharing metadata for active members and pending invitations', async () => {
+test('GET /lists/:listId returns owner sharing metadata for active members and pending invitations', async () => {
   const owner = buildUser();
   const editor = buildUser({
     id: 'user_2',
@@ -711,8 +711,10 @@ test('GET /lists/:listId returns owner-only sharing metadata for active members 
   }
 });
 
-test('GET /lists/:listId does not expose sharing metadata to non-owner members', async () => {
-  const owner = buildUser();
+test('GET /lists/:listId returns other member contacts to non-owner members', async () => {
+  const owner = buildUser({
+    phoneNumber: '+48500500500'
+  });
   const editor = buildUser({
     id: 'user_2',
     email: 'editor@example.com',
@@ -724,6 +726,17 @@ test('GET /lists/:listId does not expose sharing metadata to non-owner members',
     ownerUserId: owner.id,
     memberIds: new Set([owner.id, editor.id])
   });
+  const pendingInvitation: TestInvitation = {
+    id: 'invite_1',
+    listId: list.id,
+    email: 'pending@example.com',
+    role: 'editor',
+    invitedByUserId: owner.id,
+    claimedByUserId: null,
+    claimedAt: null,
+    createdAt: new Date('2026-03-30T10:00:00.000Z'),
+    updatedAt: new Date('2026-03-30T10:00:00.000Z')
+  };
   const { rawToken, session } = buildSessionToken(editor.id);
   const { app } = await buildApp(
     new Map([
@@ -731,7 +744,8 @@ test('GET /lists/:listId does not expose sharing metadata to non-owner members',
       [editor.id, editor]
     ]),
     new Map([[list.id, list]]),
-    [session]
+    [session],
+    [pendingInvitation]
   );
 
   try {
@@ -742,7 +756,21 @@ test('GET /lists/:listId does not expose sharing metadata to non-owner members',
     });
 
     assert.equal(response.statusCode, 200);
-    assert.equal('sharing' in response.json(), false);
+    assert.deepEqual(
+      response.json().sharing.memberContacts.map((member: { user: { email: string; phoneNumber: string | null; whatsappEligible: boolean } }) => ({
+        email: member.user.email,
+        phoneNumber: member.user.phoneNumber,
+        whatsappEligible: member.user.whatsappEligible
+      })),
+      [
+        {
+          email: owner.email,
+          phoneNumber: '+48500500500',
+          whatsappEligible: true
+        }
+      ]
+    );
+    assert.deepEqual(response.json().sharing.pendingInvitations, []);
   } finally {
     await app.close();
   }

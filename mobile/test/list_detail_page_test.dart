@@ -590,6 +590,45 @@ void main() {
     expect(message, contains('Second User'));
   });
 
+  testWidgets('enables WhatsApp notify for a list shared with the user', (
+    tester,
+  ) async {
+    final launchedUris = <Uri>[];
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      listDetail: _listDetail(
+        sharing: ListSharingMetadata(
+          memberContacts: <ListMember>[
+            _member(
+              email: 'owner@example.com',
+              displayName: 'Owner User',
+              phoneNumber: '+48 500 500 500',
+              whatsappEligible: true,
+            ),
+          ],
+          pendingInvitations: const <PendingListInvitation>[],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildSubject(
+        apiClient,
+        urlLauncher: (uri) async {
+          launchedUris.add(uri);
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Powiadom przez WhatsApp'));
+    await tester.pumpAndSettle();
+
+    expect(launchedUris, hasLength(1));
+    expect(launchedUris.single.path, '/48500500500');
+  });
+
   testWidgets('shows feedback when WhatsApp cannot be opened', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
