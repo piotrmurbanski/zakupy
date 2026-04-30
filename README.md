@@ -273,6 +273,16 @@ Uwaga dla iPhone'a:
 - na fizycznym iPhonie bezpieczniej używać adresu HTTPS przez Caddy albo Tailscale
 - `http://100.113.187.63` jest w praktyce najpewniejsze dla Androida i lokalnych testów developerskich
 
+## Codex run actions
+
+Jeśli chcesz dodać w Codex gotowe akcje do buildów i deployów mobile, użyj wspólnego skryptu:
+
+```bash
+sh mobile/scripts/codex-mobile-action.sh <action>
+```
+
+Gotowa rozpiska polecanych akcji i wymaganych zmiennych jest w [docs/codex-mobile-actions.md](/Users/piotr/sandbox/Zakupy/docs/codex-mobile-actions.md).
+
 ## Najbliższe kroki
 
 1. Dopięcie pełnego testowania end-to-end na dwóch realnych urządzeniach.

@@ -54,6 +54,7 @@ class _AuthPageState extends State<AuthPage> {
   late final TextEditingController _codeController;
 
   _AuthStep _step = _AuthStep.requestCode;
+  late bool _showBaseUrlField;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _AuthPageState extends State<AuthPage> {
     _emailController = TextEditingController(text: widget.initialEmail);
     _displayNameController = TextEditingController();
     _codeController = TextEditingController();
+    _showBaseUrlField = widget.initialBaseUrl.trim().isEmpty;
   }
 
   @override
@@ -111,6 +113,12 @@ class _AuthPageState extends State<AuthPage> {
     setState(() {
       _step = _AuthStep.requestCode;
       _codeController.clear();
+    });
+  }
+
+  void _showBackendEditor() {
+    setState(() {
+      _showBaseUrlField = true;
     });
   }
 
@@ -179,7 +187,7 @@ class _AuthPageState extends State<AuthPage> {
                           const SizedBox(height: 8),
                           Text(
                             isRequestStep
-                                ? 'Podaj swój adres e-mail, aby otrzymać kod logowania. Na prawdziwym telefonie użyj adresu Tailscale albo Caddy zamiast localhost.'
+                                ? 'Podaj swój adres e-mail, aby otrzymać kod logowania.'
                                 : 'Wpisz kod wysłany na adres ${_emailController.text.trim()}, aby zaufać temu urządzeniu.',
                             style: theme.textTheme.bodyMedium,
                           ),
@@ -189,33 +197,43 @@ class _AuthPageState extends State<AuthPage> {
                             _ErrorBanner(message: widget.errorMessage!),
                             const SizedBox(height: 16),
                           ],
-                          TextFormField(
-                            controller: _baseUrlController,
-                            decoration: const InputDecoration(
-                              labelText: 'Adres API',
-                              hintText: 'https://listek.your-tailnet.ts.net',
+                          if (_showBaseUrlField) ...[
+                            TextFormField(
+                              controller: _baseUrlController,
+                              decoration: const InputDecoration(
+                                labelText: 'Adres API',
+                                hintText: 'https://listek.your-tailnet.ts.net',
+                              ),
+                              keyboardType: TextInputType.url,
+                              enabled: !widget.isSubmitting,
+                              validator: (value) {
+                                final trimmed = value?.trim() ?? '';
+
+                                if (trimmed.isEmpty) {
+                                  return 'Adres API jest wymagany';
+                                }
+
+                                final uri = Uri.tryParse(trimmed);
+
+                                if (uri == null ||
+                                    !uri.hasScheme ||
+                                    uri.host.isEmpty) {
+                                  return 'Podaj poprawny adres URL, na przykład https://listek.your-tailnet.ts.net';
+                                }
+
+                                return null;
+                              },
                             ),
-                            keyboardType: TextInputType.url,
-                            enabled: !widget.isSubmitting,
-                            validator: (value) {
-                              final trimmed = value?.trim() ?? '';
-
-                              if (trimmed.isEmpty) {
-                                return 'Adres API jest wymagany';
-                              }
-
-                              final uri = Uri.tryParse(trimmed);
-
-                              if (uri == null ||
-                                  !uri.hasScheme ||
-                                  uri.host.isEmpty) {
-                                return 'Podaj poprawny adres URL, na przykład https://listek.your-tailnet.ts.net';
-                              }
-
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
+                            const SizedBox(height: 12),
+                          ] else ...[
+                            _SavedBackendNotice(
+                              baseUrl: _baseUrlController.text.trim(),
+                              onEdit: widget.isSubmitting
+                                  ? null
+                                  : _showBackendEditor,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           TextFormField(
                             controller: _emailController,
                             decoration: const InputDecoration(
@@ -366,6 +384,59 @@ class _ErrorBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SavedBackendNotice extends StatelessWidget {
+  const _SavedBackendNotice({
+    required this.baseUrl,
+    required this.onEdit,
+  });
+
+  final String baseUrl;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.dns_outlined, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Zapisany serwer',
+                  style: theme.textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  baseUrl,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onEdit,
+            child: const Text('Zmień'),
+          ),
+        ],
       ),
     );
   }
