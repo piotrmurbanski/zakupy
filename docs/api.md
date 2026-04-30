@@ -502,6 +502,7 @@ Response:
 Notes:
 - suggestions are ranked by `usageCount`, then by most recent use
 - usage is updated when a user creates an item or increases its quantity
+- suggestions are shared across every app connected to the same backend
 - the last chosen icon is stored with each suggestion and reused the next time the same product is selected
 
 ### `DELETE /lists/:listId/items/:itemId`
