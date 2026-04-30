@@ -233,10 +233,10 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 
 #### item_suggestions
 - `id`
-- `user_id`
 - `name`
 - `normalized_name`
 - `comment`
+- `icon_key`
 - `normalized_comment`
 - `usage_count`
 - `last_used_at`
@@ -251,6 +251,7 @@ NestJS is also valid, but Fastify keeps the first version leaner.
 - `role` can start with `owner` and `editor`.
 - `sort_order` makes manual ordering possible later.
 - `updated_at` is enough for the first synchronization approach.
+- `item_suggestions` is a backend-wide catalog shared by all connected apps, so learned product names and icon assignments stay consistent between users.
 
 ## Authentication model
 

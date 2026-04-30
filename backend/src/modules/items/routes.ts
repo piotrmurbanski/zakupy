@@ -44,7 +44,6 @@ type ItemSuggestionResponse = {
 
 type ItemSuggestionRecord = {
   id: string;
-  userId: string;
   name: string;
   normalizedName: string;
   comment: string | null;
@@ -147,13 +146,11 @@ type ItemRoutesDeps = {
     listItem: ItemRepository;
     itemSuggestion: {
       findMany(args: {
-        where: { userId: string };
         orderBy: Array<{ usageCount?: 'asc' | 'desc' } | { lastUsedAt?: 'asc' | 'desc' } | { name?: 'asc' | 'desc' }>;
         take: number;
       }): Promise<ItemSuggestionRecord[]>;
       findFirst(args: {
         where: {
-          userId: string;
           id?: string;
           normalizedName?: string;
           normalizedComment?: string;
@@ -161,7 +158,6 @@ type ItemRoutesDeps = {
       }): Promise<ItemSuggestionRecord | null>;
       create(args: {
         data: {
-          userId: string;
           name: string;
           normalizedName: string;
           comment?: string | null;
@@ -321,7 +317,6 @@ function normalizeSuggestionPart(value: string | null | undefined) {
 
 async function recordSuggestionUsage(
   deps: ItemRoutesDeps,
-  userId: string,
   {
     name,
     comment,
@@ -344,7 +339,6 @@ async function recordSuggestionUsage(
   const now = new Date();
   const existingSuggestion = await deps.prisma.itemSuggestion.findFirst({
     where: {
-      userId,
       normalizedName,
       normalizedComment
     }
@@ -380,7 +374,6 @@ async function recordSuggestionUsage(
 
   await deps.prisma.itemSuggestion.create({
     data: {
-      userId,
       name: name.trim(),
       normalizedName,
       comment: comment?.trim() ?? null,
@@ -402,9 +395,6 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
       }
 
       const suggestions = await deps.prisma.itemSuggestion.findMany({
-        where: {
-          userId: user.id
-        },
         orderBy: [{ usageCount: 'desc' }, { lastUsedAt: 'desc' }, { name: 'asc' }],
         take: 12
       });
@@ -424,8 +414,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
       const { suggestionId } = request.params as { suggestionId: string };
       const suggestion = await deps.prisma.itemSuggestion.findFirst({
         where: {
-          id: suggestionId,
-          userId: user.id
+          id: suggestionId
         }
       });
 
@@ -504,7 +493,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
         }
       });
 
-      await recordSuggestionUsage(deps, user.id, {
+      await recordSuggestionUsage(deps, {
         name: item.name,
         comment: item.comment,
         iconKey: item.iconKey,
@@ -563,7 +552,7 @@ export function createItemRoutes(deps: ItemRoutesDeps = defaultDeps): FastifyPlu
         }
       });
 
-      await recordSuggestionUsage(deps, user.id, {
+      await recordSuggestionUsage(deps, {
         name: nextName,
         comment: nextComment,
         iconKey: item.iconKey,
