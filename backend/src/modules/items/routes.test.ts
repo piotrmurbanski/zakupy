@@ -51,7 +51,6 @@ type TestSession = {
 
 type TestSuggestion = {
   id: string;
-  userId: string;
   name: string;
   normalizedName: string;
   comment: string | null;
@@ -106,7 +105,6 @@ function buildItem(overrides: Partial<TestItem> = {}): TestItem {
 function buildSuggestion(overrides: Partial<TestSuggestion> = {}): TestSuggestion {
   return {
     id: 'suggestion_1',
-    userId: 'user_1',
     name: 'Milk',
     normalizedName: 'milk',
     comment: '2%',
@@ -181,15 +179,13 @@ async function buildApp(
     },
     itemSuggestion: {
       findMany: async ({
-        where,
         take
       }: {
-        where: { userId: string };
         orderBy: Array<{ usageCount?: 'asc' | 'desc' } | { lastUsedAt?: 'asc' | 'desc' } | { name?: 'asc' | 'desc' }>;
         take: number;
       }) => {
         const suggestions = [...suggestionsById.values()]
-          .filter((suggestion): suggestion is TestSuggestion => Boolean(suggestion && suggestion.userId === where.userId))
+          .filter((suggestion): suggestion is TestSuggestion => Boolean(suggestion))
           .sort((left, right) => {
             if (right.usageCount != left.usageCount) {
               return right.usageCount - left.usageCount;
@@ -207,27 +203,29 @@ async function buildApp(
       findFirst: async ({
         where
       }: {
-        where: { userId: string; id?: string; normalizedName?: string; normalizedComment?: string };
+        where: { id?: string; normalizedName?: string; normalizedComment?: string };
       }) => {
         if (where.id) {
-          const suggestion = suggestionsById.get(where.id) ?? null;
-          return suggestion?.userId === where.userId ? suggestion : null;
+          return suggestionsById.get(where.id) ?? null;
         }
 
         return (
-          [...suggestionsById.values()].find(
-            (suggestion) =>
-              suggestion?.userId === where.userId &&
+          [...suggestionsById.values()].find((suggestion) => {
+            if (!suggestion) {
+              return false;
+            }
+
+            return (
               suggestion.normalizedName === where.normalizedName &&
               suggestion.normalizedComment === where.normalizedComment
-          ) ?? null
+            );
+          }) ?? null
         );
       },
       create: async ({
         data
       }: {
         data: {
-          userId: string;
           name: string;
           normalizedName: string;
           comment?: string | null;
@@ -239,7 +237,6 @@ async function buildApp(
       }) => {
         const suggestion = buildSuggestion({
           id: `suggestion_${suggestionsById.size + 1}`,
-          userId: data.userId,
           name: data.name,
           normalizedName: data.normalizedName,
           comment: data.comment ?? null,
@@ -445,20 +442,19 @@ function buildSessionToken(userId: string) {
   return { rawToken, session };
 }
 
-test('GET /items/suggestions returns ranked suggestions for the user', async () => {
+test('GET /items/suggestions returns ranked shared suggestions', async () => {
   const user = buildUser();
   const suggestions = new Map<string, TestSuggestion | undefined>([
     [
       'suggestion_1',
       buildSuggestion({
         id: 'suggestion_1',
-        userId: user.id,
         name: 'Milk',
         iconKey: 'eggs',
         usageCount: 10
       })
     ],
-    ['suggestion_2', buildSuggestion({ id: 'suggestion_2', userId: user.id, name: 'Batteries', usageCount: 2 })]
+    ['suggestion_2', buildSuggestion({ id: 'suggestion_2', name: 'Batteries', usageCount: 2 })]
   ]);
   const { rawToken, session } = buildSessionToken(user.id);
   const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
@@ -478,10 +474,10 @@ test('GET /items/suggestions returns ranked suggestions for the user', async () 
   }
 });
 
-test('DELETE /items/suggestions/:suggestionId removes the user suggestion', async () => {
+test('DELETE /items/suggestions/:suggestionId removes the shared suggestion', async () => {
   const user = buildUser();
   const suggestions = new Map<string, TestSuggestion | undefined>([
-    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id })]
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1' })]
   ]);
   const { rawToken, session } = buildSessionToken(user.id);
   const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
@@ -500,13 +496,10 @@ test('DELETE /items/suggestions/:suggestionId removes the user suggestion', asyn
   }
 });
 
-test('DELETE /items/suggestions/:suggestionId returns 404 for another user suggestion', async () => {
+test('DELETE /items/suggestions/:suggestionId returns 404 for a missing shared suggestion', async () => {
   const user = buildUser({ id: 'user_1' });
-  const suggestions = new Map<string, TestSuggestion | undefined>([
-    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: 'user_2' })]
-  ]);
   const { rawToken, session } = buildSessionToken(user.id);
-  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), new Map(), [session]);
 
   try {
     const response = await app.inject({
@@ -516,7 +509,6 @@ test('DELETE /items/suggestions/:suggestionId returns 404 for another user sugge
     });
 
     assert.equal(response.statusCode, 404);
-    assert.equal(suggestions.size, 1);
   } finally {
     await app.close();
   }
@@ -583,7 +575,7 @@ test('PATCH /lists/:listId/items/:itemId updates an item', async () => {
   const item = buildItem({ id: 'item_1', listId: list.id, name: 'Milk', quantity: 1, comment: '2%', isChecked: false, createdByUserId: user.id });
   const { rawToken, session } = buildSessionToken(user.id);
   const suggestions = new Map<string, TestSuggestion | undefined>([
-    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', userId: user.id, name: 'Milk', comment: '2%', normalizedComment: '2%', usageCount: 4 })]
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1', name: 'Milk', comment: '2%', normalizedComment: '2%', usageCount: 4 })]
   ]);
   const app = await buildApp(
     new Map([[user.id, user]]),
@@ -641,6 +633,48 @@ test('PATCH /lists/:listId/items/:itemId updates an item icon', async () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().item.iconKey, 'bread');
+  } finally {
+    await app.close();
+  }
+});
+
+test('shared suggestions are visible across different users on the same backend', async () => {
+  const firstUser = buildUser({ id: 'user_1', email: 'first@example.com' });
+  const secondUser = buildUser({ id: 'user_2', email: 'second@example.com', displayName: 'Second User' });
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    [
+      'suggestion_1',
+      buildSuggestion({
+        id: 'suggestion_1',
+        name: 'Tomatoes',
+        iconKey: 'vegetables',
+        usageCount: 7
+      })
+    ]
+  ]);
+  const firstSession = buildSessionToken(firstUser.id);
+  const secondSession = buildSessionToken(secondUser.id);
+  const app = await buildApp(
+    new Map([
+      [firstUser.id, firstUser],
+      [secondUser.id, secondUser]
+    ]),
+    new Map(),
+    new Map(),
+    suggestions,
+    [firstSession.session, secondSession.session]
+  );
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/items/suggestions',
+      headers: { authorization: `Bearer ${secondSession.rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Tomatoes']);
+    assert.equal(response.json().items[0].iconKey, 'vegetables');
   } finally {
     await app.close();
   }

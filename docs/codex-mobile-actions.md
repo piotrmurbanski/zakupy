@@ -75,7 +75,6 @@ API_BASE_URL=https://twoj-host.tailnet.ts.net \
 FLUTTER_BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
 sh mobile/scripts/codex-mobile-action.sh build-android-apk
 ```
-
 ```bash
 API_BASE_URL=https://twoj-host.tailnet.ts.net \
 ANDROID_DEVICE_ID=R5CX123456A \
