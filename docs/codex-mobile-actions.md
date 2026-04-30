@@ -30,6 +30,10 @@ All actions support:
   backend URL passed to Flutter as `--dart-define=API_BASE_URL=...`
 - `FLUTTER_BUILD_FLAVOR`
   optional Flutter flavor if you introduce flavors later
+- `FLUTTER_BUILD_NAME`
+  optional app version passed to Flutter as `--build-name=...`
+- `FLUTTER_BUILD_NUMBER`
+  optional build number passed to Flutter as `--build-number=...`
 
 Extra variables for deploy/export actions:
 
@@ -61,6 +65,14 @@ If `API_BASE_URL` is not set, the script defaults to `http://100.113.187.63` to 
 
 ```bash
 API_BASE_URL=https://twoj-host.tailnet.ts.net \
+sh mobile/scripts/codex-mobile-action.sh build-android-apk
+```
+
+Przykład dla GitHub Actions z automatycznym numerem buildu:
+
+```bash
+API_BASE_URL=https://twoj-host.tailnet.ts.net \
+FLUTTER_BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
 sh mobile/scripts/codex-mobile-action.sh build-android-apk
 ```
 

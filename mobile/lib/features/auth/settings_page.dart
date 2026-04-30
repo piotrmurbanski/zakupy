@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'auth_models.dart';
 import 'auth_profile_store.dart';
@@ -10,6 +11,7 @@ class SettingsPage extends StatefulWidget {
     required this.onUpdatePhoneNumber,
     this.savedProfile,
     this.onResetLocalData,
+    this.packageInfoLoader = PackageInfo.fromPlatform,
     super.key,
   });
 
@@ -17,6 +19,7 @@ class SettingsPage extends StatefulWidget {
   final Future<AuthUser> Function(String? phoneNumber) onUpdatePhoneNumber;
   final SavedAuthProfile? savedProfile;
   final Future<void> Function()? onResetLocalData;
+  final Future<PackageInfo> Function() packageInfoLoader;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -29,6 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isSaving = false;
   String? _errorMessage;
   String? _savedPhoneNumber;
+  PackageInfo? _packageInfo;
 
   @override
   void initState() {
@@ -36,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _savedPhoneNumber = widget.currentUser.phoneNumber;
     _phoneController = TextEditingController(text: _savedPhoneNumber ?? '');
     _phoneFocusNode = FocusNode();
+    _loadPackageInfo();
   }
 
   @override
@@ -49,6 +54,36 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String get _phoneButtonLabel =>
       _hasSavedPhoneNumber ? 'Zapisz zmiany' : 'Zapisz numer';
+
+  Future<void> _loadPackageInfo() async {
+    final packageInfo = await widget.packageInfoLoader();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _packageInfo = packageInfo;
+    });
+  }
+
+  String? get _versionLabel {
+    final packageInfo = _packageInfo;
+    if (packageInfo == null) {
+      return null;
+    }
+
+    final version = packageInfo.version.trim();
+    final buildNumber = packageInfo.buildNumber.trim();
+    if (version.isEmpty) {
+      return null;
+    }
+
+    if (buildNumber.isEmpty) {
+      return version;
+    }
+
+    return '$version (build $buildNumber)';
+  }
 
   Future<void> _confirmAndReset(BuildContext context) async {
     final shouldReset = await showDialog<bool>(
@@ -293,6 +328,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     Text('Backend: ${widget.savedProfile!.baseUrl}'),
                     const SizedBox(height: 4),
                     Text('Email: ${widget.savedProfile!.email}'),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_versionLabel != null) ...[
+                    Text('Wersja aplikacji', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    Text(_versionLabel!),
                     const SizedBox(height: 16),
                   ],
                   OutlinedButton(
