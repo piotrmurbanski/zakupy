@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:zakupy_mobile/features/auth/auth_models.dart';
 import 'package:zakupy_mobile/features/auth/auth_profile_store.dart';
 import 'package:zakupy_mobile/features/auth/settings_page.dart';
@@ -21,6 +22,7 @@ void main() {
           onUpdatePhoneNumber: (phoneNumber) async =>
               _buildUser(phoneNumber: phoneNumber),
           onResetLocalData: () async {},
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -30,6 +32,8 @@ void main() {
     expect(find.text('Email: test@example.com'), findsOneWidget);
     expect(find.text('test@example.com'), findsOneWidget);
     expect(find.text('Aktualnie zapisany numer: +48123123123'), findsOneWidget);
+    expect(find.text('Wersja aplikacji'), findsOneWidget);
+    expect(find.text('0.1.0 (build 2)'), findsOneWidget);
   });
 
   testWidgets('SettingsPage saves a valid phone number', (tester) async {
@@ -43,6 +47,7 @@ void main() {
             savedPhoneNumber = phoneNumber;
             return _buildUser(phoneNumber: '+48123123123');
           },
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -71,6 +76,7 @@ void main() {
             saveCalls += 1;
             return _buildUser(phoneNumber: phoneNumber);
           },
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -95,6 +101,7 @@ void main() {
         home: SettingsPage(
           currentUser: _buildUser(),
           onUpdatePhoneNumber: (_) => completer.future,
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -126,6 +133,7 @@ void main() {
           onUpdatePhoneNumber: (_) async {
             throw Exception('Nie udało się zapisać zmian.');
           },
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -149,6 +157,7 @@ void main() {
             clearedValue = phoneNumber;
             return _buildUser(phoneNumber: null);
           },
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -184,6 +193,7 @@ void main() {
           onResetLocalData: () async {
             resetCalls += 1;
           },
+          packageInfoLoader: _buildPackageInfo,
         ),
       ),
     );
@@ -196,6 +206,15 @@ void main() {
 
     expect(resetCalls, 1);
   });
+}
+
+Future<PackageInfo> _buildPackageInfo() async {
+  return PackageInfo(
+    appName: 'Listek',
+    packageName: 'com.example.zakupy_mobile',
+    version: '0.1.0',
+    buildNumber: '2',
+  );
 }
 
 AuthUser _buildUser({String? phoneNumber}) {

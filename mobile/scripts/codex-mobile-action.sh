@@ -14,6 +14,8 @@ ACTION=${1:-}
 
 API_BASE_URL=${API_BASE_URL:-http://100.113.187.63}
 FLUTTER_BUILD_FLAVOR=${FLUTTER_BUILD_FLAVOR:-}
+FLUTTER_BUILD_NAME=${FLUTTER_BUILD_NAME:-}
+FLUTTER_BUILD_NUMBER=${FLUTTER_BUILD_NUMBER:-}
 ANDROID_DEVICE_ID=${ANDROID_DEVICE_ID:-}
 IOS_DEVICE_ID=${IOS_DEVICE_ID:-}
 IOS_EXPORT_OPTIONS_PLIST=${IOS_EXPORT_OPTIONS_PLIST:-}
@@ -21,11 +23,23 @@ IOS_EXPORT_OPTIONS_PLIST=${IOS_EXPORT_OPTIONS_PLIST:-}
 cd "$MOBILE_DIR"
 
 run_flutter() {
+  set -- flutter "$@"
+
   if [ -n "$FLUTTER_BUILD_FLAVOR" ]; then
-    flutter "$@" --flavor "$FLUTTER_BUILD_FLAVOR" --dart-define="API_BASE_URL=$API_BASE_URL"
-  else
-    flutter "$@" --dart-define="API_BASE_URL=$API_BASE_URL"
+    set -- "$@" --flavor "$FLUTTER_BUILD_FLAVOR"
   fi
+
+  if [ -n "$FLUTTER_BUILD_NAME" ]; then
+    set -- "$@" "--build-name=$FLUTTER_BUILD_NAME"
+  fi
+
+  if [ -n "$FLUTTER_BUILD_NUMBER" ]; then
+    set -- "$@" "--build-number=$FLUTTER_BUILD_NUMBER"
+  fi
+
+  set -- "$@" "--dart-define=API_BASE_URL=$API_BASE_URL"
+
+  "$@"
 }
 
 require_value() {
@@ -55,6 +69,8 @@ Actions:
 Environment:
   API_BASE_URL               Backend URL passed through --dart-define.
   FLUTTER_BUILD_FLAVOR       Optional Flutter flavor name.
+  FLUTTER_BUILD_NAME         Optional app version, for example 0.2.0.
+  FLUTTER_BUILD_NUMBER       Optional build number, for example 58.
   ANDROID_DEVICE_ID          Required by deploy-android.
   IOS_DEVICE_ID              Required by deploy-ios.
   IOS_EXPORT_OPTIONS_PLIST   Required by build-ios-ipa.
