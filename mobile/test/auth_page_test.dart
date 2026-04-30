@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zakupy_mobile/features/auth/auth_page.dart';
 
 void main() {
-  testWidgets('AuthPage pre-fills the saved backend URL and email', (
+  testWidgets('AuthPage hides the saved backend URL behind a simple summary', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -30,15 +30,50 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final baseUrlField = tester.widget<TextFormField>(
-      find.widgetWithText(TextFormField, 'Adres API'),
-    );
     final emailField = tester.widget<TextFormField>(
       find.widgetWithText(TextFormField, 'Email'),
     );
 
-    expect(baseUrlField.controller?.text, 'http://localhost:3000');
+    expect(find.text('Zapisany serwer'), findsOneWidget);
+    expect(find.text('http://localhost:3000'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Adres API'), findsNothing);
     expect(emailField.controller?.text, 'test@example.com');
+  });
+
+  testWidgets('AuthPage lets the user reveal the saved backend URL editor', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AuthPage(
+          initialBaseUrl: 'http://localhost:3000',
+          initialEmail: 'test@example.com',
+          themeMode: ThemeMode.system,
+          onThemeModeChanged: (_) {},
+          onRequestCode: ({
+            required String baseUrl,
+            required String email,
+            String? displayName,
+          }) async {},
+          onVerifyCode: ({
+            required String baseUrl,
+            required String email,
+            required String code,
+            String? displayName,
+          }) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Zmień'));
+    await tester.pumpAndSettle();
+
+    final baseUrlField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Adres API'),
+    );
+
+    expect(baseUrlField.controller?.text, 'http://localhost:3000');
   });
 
   testWidgets('AuthPage shows Polish copy for the request-code step', (
@@ -67,7 +102,7 @@ void main() {
 
     expect(
       find.text(
-        'Podaj swój adres e-mail, aby otrzymać kod logowania. Na prawdziwym telefonie użyj adresu Tailscale albo Caddy zamiast localhost.',
+        'Podaj swój adres e-mail, aby otrzymać kod logowania.',
       ),
       findsOneWidget,
     );
