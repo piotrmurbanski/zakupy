@@ -203,13 +203,23 @@ async function buildApp(
       findFirst: async ({
         where
       }: {
-        where: { normalizedName: string; normalizedComment: string };
+        where: { id?: string; normalizedName?: string; normalizedComment?: string };
       }) => {
+        if (where.id) {
+          return suggestionsById.get(where.id) ?? null;
+        }
+
         return (
-          [...suggestionsById.values()].find(
-            (suggestion) =>
-              suggestion?.normalizedName === where.normalizedName && suggestion.normalizedComment === where.normalizedComment
-          ) ?? null
+          [...suggestionsById.values()].find((suggestion) => {
+            if (!suggestion) {
+              return false;
+            }
+
+            return (
+              suggestion.normalizedName === where.normalizedName &&
+              suggestion.normalizedComment === where.normalizedComment
+            );
+          }) ?? null
         );
       },
       create: async ({
@@ -272,6 +282,16 @@ async function buildApp(
 
         suggestionsById.set(where.id, updatedSuggestion);
         return updatedSuggestion;
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const suggestion = suggestionsById.get(where.id);
+
+        if (!suggestion) {
+          throw new Error('Suggestion not found');
+        }
+
+        suggestionsById.delete(where.id);
+        return suggestion;
       }
     },
     shoppingList: {
@@ -449,6 +469,46 @@ test('GET /items/suggestions returns ranked shared suggestions', async () => {
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().items.map((item: { name: string }) => item.name), ['Milk', 'Batteries']);
     assert.equal(response.json().items[0].iconKey, 'eggs');
+  } finally {
+    await app.close();
+  }
+});
+
+test('DELETE /items/suggestions/:suggestionId removes the shared suggestion', async () => {
+  const user = buildUser();
+  const suggestions = new Map<string, TestSuggestion | undefined>([
+    ['suggestion_1', buildSuggestion({ id: 'suggestion_1' })]
+  ]);
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), suggestions, [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/items/suggestions/suggestion_1',
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(suggestions.size, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test('DELETE /items/suggestions/:suggestionId returns 404 for a missing shared suggestion', async () => {
+  const user = buildUser({ id: 'user_1' });
+  const { rawToken, session } = buildSessionToken(user.id);
+  const app = await buildApp(new Map([[user.id, user]]), new Map(), new Map(), new Map(), [session]);
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/items/suggestions/suggestion_1',
+      headers: { authorization: `Bearer ${rawToken}` }
+    });
+
+    assert.equal(response.statusCode, 404);
   } finally {
     await app.close();
   }

@@ -63,12 +63,16 @@ void main() {
       'user': {
         'id': 'user_2',
         'email': 'second-user@example.com',
-        'displayName': 'Second User'
+        'displayName': 'Second User',
+        'phoneNumber': '+48123123123',
+        'whatsappEligible': true,
       }
     });
 
     expect(member.user.email, 'second-user@example.com');
     expect(member.role, 'editor');
+    expect(member.user.phoneNumber, '+48123123123');
+    expect(member.user.whatsappEligible, true);
   });
 
   test('ShoppingListItem.fromJson parses API payloads', () {
@@ -500,6 +504,85 @@ void main() {
     expect(result.isInvitationPending, true);
     expect(result.invitation?.email, 'pending@example.com');
     expect(result.member, isNull);
+  });
+
+  test('ApiClient fetchListDetail parses sharing metadata', () async {
+    final adapter = _RecordingAdapter(
+      ResponseBody.fromString(
+        jsonEncode({
+          'list': {
+            'id': 'list_1',
+            'name': 'Weekly groceries',
+            'ownerUserId': 'user_1',
+            'plannedFor': '2026-04-15T00:00:00.000Z',
+            'isArchived': false,
+            'archivedAt': null,
+            'createdAt': '2026-04-10T12:00:00.000Z',
+            'updatedAt': '2026-04-11T12:00:00.000Z',
+          },
+          'sharing': {
+            'memberContacts': [
+              {
+                'id': 'member_1',
+                'listId': 'list_1',
+                'userId': 'user_2',
+                'role': 'editor',
+                'createdAt': '2026-04-10T12:00:00.000Z',
+                'updatedAt': '2026-04-11T12:00:00.000Z',
+                'user': {
+                  'id': 'user_2',
+                  'email': 'second-user@example.com',
+                  'displayName': 'Second User',
+                  'phoneNumber': '+48123123123',
+                  'whatsappEligible': true
+                }
+              }
+            ],
+            'pendingInvitations': [
+              {
+                'id': 'invite_1',
+                'listId': 'list_1',
+                'email': 'pending@example.com',
+                'role': 'editor',
+                'status': 'pending',
+                'createdAt': '2026-04-05T20:00:00.000Z',
+                'updatedAt': '2026-04-05T20:00:00.000Z'
+              }
+            ]
+          }
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    final dio = Dio();
+    dio.httpClientAdapter = adapter;
+
+    final client = ApiClient(
+      baseUrl: 'http://localhost:3000/',
+      accessToken: 'session-token',
+      dio: dio,
+    );
+
+    final detail = await client.fetchListDetail('list_1');
+
+    expect(adapter.lastRequest?.path, '/lists/list_1');
+    expect(adapter.lastRequest?.method, 'GET');
+    expect(
+        adapter.lastRequest?.headers['Authorization'], 'Bearer session-token');
+    expect(detail.list.name, 'Weekly groceries');
+    expect(detail.sharing?.memberContacts, hasLength(1));
+    expect(detail.sharing?.pendingInvitations, hasLength(1));
+    expect(
+      detail.sharing?.memberContacts.single.user.phoneNumber,
+      '+48123123123',
+    );
+    expect(
+      detail.sharing?.memberContacts.single.user.whatsappEligible,
+      true,
+    );
   });
 
   test('AuthSession and AuthUser parse API payloads', () {

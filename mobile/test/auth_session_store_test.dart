@@ -12,6 +12,7 @@ void main() {
         id: 'user_1',
         email: 'test@example.com',
         displayName: 'Test User',
+        phoneNumber: '+48123123123',
         createdAt: DateTime.parse('2026-03-30T10:00:00.000Z'),
         updatedAt: DateTime.parse('2026-03-30T10:00:00.000Z'),
       ),
@@ -24,13 +25,15 @@ void main() {
       session: buildSession(),
     );
 
-    final restored =
-        StoredAuthSession.fromStorageValue(session.toStorageValue());
+    final restored = StoredAuthSession.fromStorageValue(
+      session.toStorageValue(),
+    );
 
     expect(restored.baseUrl, 'http://localhost:3000');
     expect(restored.session.sessionToken, 'token_123');
     expect(restored.session.user.email, 'test@example.com');
     expect(restored.session.user.displayName, 'Test User');
+    expect(restored.session.user.phoneNumber, '+48123123123');
   });
 
   test('StoredAuthSession rejects malformed payloads', () {
@@ -66,7 +69,9 @@ void main() {
       email: 'test@example.com',
     );
 
-    final restored = SavedAuthProfile.fromStorageValue(profile.toStorageValue());
+    final restored = SavedAuthProfile.fromStorageValue(
+      profile.toStorageValue(),
+    );
 
     expect(restored.baseUrl, 'http://localhost:3000');
     expect(restored.email, 'test@example.com');

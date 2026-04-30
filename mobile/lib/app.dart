@@ -51,6 +51,7 @@ class _ZakupyAppState extends State<ZakupyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Listek',
+      debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
       themeMode: _themeMode,
@@ -123,6 +124,7 @@ class _AppBootstrapperState extends State<_AppBootstrapper> {
           return AppHomePage(
             session: state.session!,
             authRepository: _authRepository,
+            onUpdatePhoneNumber: _sessionController.updatePhoneNumber,
             onLogout: _sessionController.logout,
             onResetLocalData: _sessionController.resetLocalData,
             themeMode: widget.themeMode,

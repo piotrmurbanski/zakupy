@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zakupy_mobile/core/models/item_icon.dart';
 import 'package:zakupy_mobile/core/network/api_client.dart';
 import 'package:zakupy_mobile/features/lists/list_detail_page.dart';
 import 'package:zakupy_mobile/features/lists/share_list_dialog.dart';
@@ -12,6 +11,7 @@ void main() {
     _FakeApiClient apiClient, {
     bool canManageList = false,
     ShareEmailHistoryStore? shareEmailHistoryStore,
+    Future<bool> Function(Uri uri)? urlLauncher,
   }) {
     return MaterialApp(
       home: ListDetailPage(
@@ -21,6 +21,7 @@ void main() {
         canManageList: canManageList,
         shareEmailHistoryStore:
             shareEmailHistoryStore ?? InMemoryShareEmailHistoryStore(),
+        urlLauncher: urlLauncher,
       ),
     );
   }
@@ -78,6 +79,8 @@ void main() {
               id: 'user_2',
               email: email,
               displayName: 'Second User',
+              phoneNumber: null,
+              whatsappEligible: false,
             ),
           ),
         );
@@ -454,6 +457,37 @@ void main() {
     expect(find.text('Milk'), findsOneWidget);
   });
 
+  testWidgets('removes a suggestion after long press confirmation', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[],
+      suggestions: <ItemSuggestion>[
+        ItemSuggestion(
+          id: 'suggestion_milk',
+          name: 'Milk',
+          comment: '2%',
+          iconKey: 'eggs',
+          usageCount: 12,
+          lastUsedAt: DateTime.utc(2026, 4, 10, 12),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.widgetWithText(ActionChip, 'Milk • 2%'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Usunąć sugestię?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Usuń'));
+    await tester.pumpAndSettle();
+
+    expect(apiClient.deletedSuggestionIds, ['suggestion_milk']);
+    expect(find.text('Milk • 2%'), findsNothing);
+  });
+
   testWidgets('increments item quantity on tap', (tester) async {
     final apiClient = _FakeApiClient(
       items: <ShoppingListItem>[_milkItem],
@@ -467,6 +501,170 @@ void main() {
 
     expect(find.text('Milk (3)'), findsOneWidget);
     expect(apiClient.lastUpdatedDraft?.quantity, 3);
+  });
+
+  testWidgets('keeps WhatsApp notify disabled without a linked phone number', (
+    tester,
+  ) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      listDetail: _listDetail(
+        sharing: ListSharingMetadata(
+          memberContacts: <ListMember>[
+            _member(
+              email: 'second-user@example.com',
+              displayName: 'Second User',
+              phoneNumber: null,
+              whatsappEligible: false,
+            ),
+          ],
+          pendingInvitations: const <PendingListInvitation>[],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(buildSubject(apiClient, canManageList: true));
+    await tester.pumpAndSettle();
+
+    final notifyButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.chat_outlined),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(notifyButton.onPressed, isNull);
+  });
+
+  testWidgets('launches WhatsApp with a prefilled last-change message', (
+    tester,
+  ) async {
+    final launchedUris = <Uri>[];
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      listDetail: _listDetail(
+        sharing: ListSharingMetadata(
+          memberContacts: <ListMember>[
+            _member(
+              email: 'second-user@example.com',
+              displayName: 'Second User',
+              phoneNumber: '+48 123 123 123',
+              whatsappEligible: true,
+            ),
+          ],
+          pendingInvitations: const <PendingListInvitation>[],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildSubject(
+        apiClient,
+        canManageList: true,
+        urlLauncher: (uri) async {
+          launchedUris.add(uri);
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nazwa'),
+      'Bread',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Powiadom przez WhatsApp'));
+    await tester.pumpAndSettle();
+
+    expect(launchedUris, hasLength(1));
+    expect(launchedUris.single.host, 'wa.me');
+    expect(launchedUris.single.path, '/48123123123');
+    final message = launchedUris.single.queryParameters['text'];
+    expect(message, isNotNull);
+    expect(message, contains('Weekly groceries'));
+    expect(message, contains('Bread'));
+    expect(message, contains('Second User'));
+  });
+
+  testWidgets('enables WhatsApp notify for a list shared with the user', (
+    tester,
+  ) async {
+    final launchedUris = <Uri>[];
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      listDetail: _listDetail(
+        sharing: ListSharingMetadata(
+          memberContacts: <ListMember>[
+            _member(
+              email: 'owner@example.com',
+              displayName: 'Owner User',
+              phoneNumber: '+48 500 500 500',
+              whatsappEligible: true,
+            ),
+          ],
+          pendingInvitations: const <PendingListInvitation>[],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildSubject(
+        apiClient,
+        urlLauncher: (uri) async {
+          launchedUris.add(uri);
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Powiadom przez WhatsApp'));
+    await tester.pumpAndSettle();
+
+    expect(launchedUris, hasLength(1));
+    expect(launchedUris.single.path, '/48500500500');
+  });
+
+  testWidgets('shows feedback when WhatsApp cannot be opened', (tester) async {
+    final apiClient = _FakeApiClient(
+      items: <ShoppingListItem>[_milkItem],
+      listDetail: _listDetail(
+        sharing: ListSharingMetadata(
+          memberContacts: <ListMember>[
+            _member(
+              email: 'second-user@example.com',
+              displayName: 'Second User',
+              phoneNumber: '+48123123123',
+              whatsappEligible: true,
+            ),
+          ],
+          pendingInvitations: const <PendingListInvitation>[],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildSubject(
+        apiClient,
+        canManageList: true,
+        urlLauncher: (_) async => false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Powiadom przez WhatsApp'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Nie udało się otworzyć WhatsApp. Sprawdź, czy aplikacja jest zainstalowana.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('changes an item icon from the edit dialog', (tester) async {
@@ -546,10 +744,10 @@ class _FakeApiClient extends ApiClient {
   _FakeApiClient({
     required List<ShoppingListItem> items,
     List<ItemSuggestion> suggestions = const <ItemSuggestion>[],
+    this.listDetail,
     this.createItemHandler,
     this.updateItemHandler,
     this.updateListHandler,
-    this.archiveListHandler,
     this.deleteItemHandler,
     this.fetchItemsHandler,
     this.shareListHandler,
@@ -559,6 +757,7 @@ class _FakeApiClient extends ApiClient {
 
   final List<ShoppingListItem> items;
   final List<ItemSuggestion> suggestions;
+  final ShoppingListDetail? listDetail;
   final Future<List<ShoppingListItem>> Function(int callCount)?
       fetchItemsHandler;
   final Future<ShoppingListItem> Function(String listId, ItemDraft draft)?
@@ -573,7 +772,6 @@ class _FakeApiClient extends ApiClient {
     required String name,
     DateTime? plannedFor,
   })? updateListHandler;
-  final Future<ShoppingListSummary> Function(String listId)? archiveListHandler;
   final Future<void> Function(String listId, String itemId)? deleteItemHandler;
   final Future<ShareListResult> Function(String listId, String email)?
       shareListHandler;
@@ -585,6 +783,7 @@ class _FakeApiClient extends ApiClient {
   int archiveListCalls = 0;
   ItemDraft? lastCreatedDraft;
   ItemDraft? lastUpdatedDraft;
+  final List<String> deletedSuggestionIds = <String>[];
 
   @override
   Future<List<ShoppingListItem>> fetchItems(String listId) async {
@@ -601,6 +800,14 @@ class _FakeApiClient extends ApiClient {
   @override
   Future<List<ItemSuggestion>> fetchItemSuggestions() async {
     return List<ItemSuggestion>.from(suggestions);
+  }
+
+  @override
+  Future<ShoppingListDetail> fetchListDetail(String listId) async {
+    return listDetail ??
+        _listDetail(
+          name: 'Weekly groceries',
+        );
   }
 
   @override
@@ -679,10 +886,6 @@ class _FakeApiClient extends ApiClient {
   Future<ShoppingListSummary> archiveList(String listId) async {
     archiveListCalls += 1;
 
-    if (archiveListHandler != null) {
-      return archiveListHandler!(listId);
-    }
-
     return ShoppingListSummary(
       id: listId,
       name: 'Weekly groceries',
@@ -716,6 +919,12 @@ class _FakeApiClient extends ApiClient {
   }
 
   @override
+  Future<void> deleteItemSuggestion(String suggestionId) async {
+    deletedSuggestionIds.add(suggestionId);
+    suggestions.removeWhere((suggestion) => suggestion.id == suggestionId);
+  }
+
+  @override
   Future<ShareListResult> shareList({
     required String listId,
     required String email,
@@ -738,10 +947,53 @@ class _FakeApiClient extends ApiClient {
           id: 'user_$shareListCalls',
           email: email,
           displayName: 'Shared User',
+          phoneNumber: null,
+          whatsappEligible: false,
         ),
       ),
     );
   }
+}
+
+ShoppingListDetail _listDetail({
+  String name = 'Weekly groceries',
+  DateTime? plannedFor,
+  ListSharingMetadata? sharing,
+}) {
+  return ShoppingListDetail(
+    list: ShoppingListSummary(
+      id: 'list_1',
+      name: name,
+      plannedFor: plannedFor,
+      ownerUserId: 'user_1',
+      createdAt: DateTime.utc(2026, 3, 31, 8),
+      updatedAt: DateTime.utc(2026, 4, 1, 12),
+    ),
+    sharing: sharing,
+  );
+}
+
+ListMember _member({
+  required String email,
+  required String displayName,
+  required String? phoneNumber,
+  required bool whatsappEligible,
+}) {
+  return ListMember(
+    id: 'member_${email.hashCode}',
+    listId: 'list_1',
+    userId: 'user_${email.hashCode}',
+    role: 'member',
+    createdAt: DateTime.utc(2026, 4, 1, 11),
+    updatedAt: DateTime.utc(2026, 4, 1, 11),
+    user: ListMemberUser(
+      id: 'user_${email.hashCode}',
+      email: email,
+      displayName: displayName,
+      phoneNumber: phoneNumber,
+      whatsappEligible: whatsappEligible,
+    ),
+  );
 }
 
 class _OpenListHarness extends StatelessWidget {

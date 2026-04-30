@@ -9,36 +9,45 @@ String normalizeBaseUrl(String baseUrl) {
   return baseUrl.trim().replaceAll(RegExp(r'/$'), '');
 }
 
+Map<String, dynamic> _readResponseObject(
+  Map<String, dynamic>? payload,
+  String key,
+) {
+  final value = payload?[key];
+
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+
+  if (value is Map) {
+    return Map<String, dynamic>.from(value);
+  }
+
+  throw ApiException('Brakuje pola $key w odpowiedzi API.');
+}
+
 class ApiClient {
-  ApiClient({
-    required String baseUrl,
-    String accessToken = '',
-    Dio? dio,
-  })  : baseUrl = normalizeBaseUrl(baseUrl),
-        accessToken = accessToken.trim(),
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: normalizeBaseUrl(baseUrl),
-                responseType: ResponseType.json,
-              ),
-            );
+  ApiClient({required String baseUrl, String accessToken = '', Dio? dio})
+    : baseUrl = normalizeBaseUrl(baseUrl),
+      accessToken = accessToken.trim(),
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: normalizeBaseUrl(baseUrl),
+              responseType: ResponseType.json,
+            ),
+          );
 
   final String baseUrl;
   final String accessToken;
   final Dio _dio;
 
   ApiClient withAccessToken(String nextAccessToken) {
-    return ApiClient(
-      baseUrl: baseUrl,
-      accessToken: nextAccessToken,
-    );
+    return ApiClient(baseUrl: baseUrl, accessToken: nextAccessToken);
   }
 
-  Future<void> requestCode({
-    required String email,
-    String? displayName,
-  }) {
+  Future<void> requestCode({required String email, String? displayName}) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/auth/request-code',
@@ -90,6 +99,18 @@ class ApiClient {
     });
   }
 
+  Future<AuthUser> updateCurrentUser({required String? phoneNumber}) {
+    return _guard(() async {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/auth/me',
+        data: {'phoneNumber': phoneNumber?.trim()},
+        options: _authOptions(),
+      );
+
+      return AuthUser.fromJson(_readObject(response.data, 'user'));
+    });
+  }
+
   Future<void> logout() {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -107,9 +128,7 @@ class ApiClient {
     });
   }
 
-  Future<List<ShoppingListSummary>> fetchLists({
-    bool includeArchived = false,
-  }) {
+  Future<List<ShoppingListSummary>> fetchLists({bool includeArchived = false}) {
     return _guard(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/lists',
@@ -121,6 +140,17 @@ class ApiClient {
               .cast<Map<String, dynamic>>();
 
       return items.map(ShoppingListSummary.fromJson).toList(growable: false);
+    });
+  }
+
+  Future<ShoppingListDetail> fetchListDetail(String listId) {
+    return _guard(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/lists/$listId',
+        options: _authOptions(),
+      );
+
+      return ShoppingListDetail.fromJson(response.data ?? const {});
     });
   }
 
@@ -190,9 +220,7 @@ class ApiClient {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/lists/$listId/members',
-        data: {
-          'email': email.trim(),
-        },
+        data: {'email': email.trim()},
         options: _authOptions(),
       );
 
@@ -248,6 +276,15 @@ class ApiClient {
     });
   }
 
+  Future<void> deleteItemSuggestion(String suggestionId) {
+    return _guard(() async {
+      await _dio.delete<void>(
+        '/items/suggestions/$suggestionId',
+        options: _authOptions(),
+      );
+    });
+  }
+
   Future<ShoppingListItem> createItem(String listId, ItemDraft draft) {
     return _guard(() async {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -290,9 +327,7 @@ class ApiClient {
       return const <String, dynamic>{};
     }
 
-    return <String, dynamic>{
-      'Authorization': 'Bearer $accessToken',
-    };
+    return <String, dynamic>{'Authorization': 'Bearer $accessToken'};
   }
 
   Options _authOptions() {
@@ -326,10 +361,7 @@ class ApiClient {
     );
   }
 
-  static String _readString(
-    Map<String, dynamic>? payload,
-    String key,
-  ) {
+  static String _readString(Map<String, dynamic>? payload, String key) {
     final value = payload?[key];
 
     if (value is String) {
@@ -365,10 +397,7 @@ class ApiException implements Exception {
     if (data is Map<String, dynamic>) {
       final message = data['message'];
       if (message is String && message.trim().isNotEmpty) {
-        return ApiException(
-          message,
-          statusCode: error.response?.statusCode,
-        );
+        return ApiException(message, statusCode: error.response?.statusCode);
       }
     }
 
@@ -447,13 +476,60 @@ class ShoppingListSummary {
       plannedFor: json['plannedFor'] == null
           ? null
           : DateTime.parse(json['plannedFor'] as String),
-      isArchived: json['isArchived'] as bool? ??
+      isArchived:
+          json['isArchived'] as bool? ??
           ((json['archivedAt'] as String?) != null),
       archivedAt: json['archivedAt'] == null
           ? null
           : DateTime.parse(json['archivedAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+}
+
+class ShoppingListDetail {
+  const ShoppingListDetail({
+    required this.list,
+    this.sharing,
+  });
+
+  final ShoppingListSummary list;
+  final ListSharingMetadata? sharing;
+
+  factory ShoppingListDetail.fromJson(Map<String, dynamic> json) {
+    return ShoppingListDetail(
+      list: ShoppingListSummary.fromJson(_readResponseObject(json, 'list')),
+      sharing: json['sharing'] == null
+          ? null
+          : ListSharingMetadata.fromJson(_readResponseObject(json, 'sharing')),
+    );
+  }
+}
+
+class ListSharingMetadata {
+  const ListSharingMetadata({
+    required this.memberContacts,
+    required this.pendingInvitations,
+  });
+
+  final List<ListMember> memberContacts;
+  final List<PendingListInvitation> pendingInvitations;
+
+  factory ListSharingMetadata.fromJson(Map<String, dynamic> json) {
+    final memberContacts =
+        (json['memberContacts'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+    final pendingInvitations =
+        (json['pendingInvitations'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+
+    return ListSharingMetadata(
+      memberContacts:
+          memberContacts.map(ListMember.fromJson).toList(growable: false),
+      pendingInvitations: pendingInvitations
+          .map(PendingListInvitation.fromJson)
+          .toList(growable: false),
     );
   }
 }
@@ -616,17 +692,23 @@ class ListMemberUser {
     required this.id,
     required this.email,
     required this.displayName,
+    required this.phoneNumber,
+    required this.whatsappEligible,
   });
 
   final String id;
   final String email;
   final String displayName;
+  final String? phoneNumber;
+  final bool whatsappEligible;
 
   factory ListMemberUser.fromJson(Map<String, dynamic> json) {
     return ListMemberUser(
       id: json['id'] as String,
       email: json['email'] as String,
       displayName: json['displayName'] as String,
+      phoneNumber: json['phoneNumber'] as String?,
+      whatsappEligible: json['whatsappEligible'] as bool? ?? false,
     );
   }
 }
@@ -708,15 +790,12 @@ class PendingListInvitation {
 }
 
 class ShareListResult {
-  const ShareListResult._({
-    this.member,
-    this.invitation,
-  });
+  const ShareListResult._({this.member, this.invitation});
 
   const ShareListResult.member(ListMember member) : this._(member: member);
 
   const ShareListResult.invitation(PendingListInvitation invitation)
-      : this._(invitation: invitation);
+    : this._(invitation: invitation);
 
   final ListMember? member;
   final PendingListInvitation? invitation;
