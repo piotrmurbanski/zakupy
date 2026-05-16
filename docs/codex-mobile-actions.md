@@ -44,7 +44,10 @@ Extra variables for deploy/export actions:
 - `IOS_EXPORT_OPTIONS_PLIST`
   required by `build-ios-ipa`
 
-If `API_BASE_URL` is not set, the script defaults to `http://100.113.187.63` to match the current README examples.
+If `API_BASE_URL` is not set, the script should default to your active backend endpoint.
+For this repo, the recommended convention is:
+- `http://dev-api.twoj-serwer.tailnet.ts.net` for development installs
+- `http://api.twoj-serwer.tailnet.ts.net` for stable installs
 
 ## Notes by platform
 
@@ -75,6 +78,7 @@ API_BASE_URL=https://twoj-host.tailnet.ts.net \
 FLUTTER_BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
 sh mobile/scripts/codex-mobile-action.sh build-android-apk
 ```
+
 ```bash
 API_BASE_URL=https://twoj-host.tailnet.ts.net \
 ANDROID_DEVICE_ID=R5CX123456A \

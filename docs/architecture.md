@@ -62,12 +62,13 @@ It is also a good stepping stone:
 
 ## Delivery pipeline
 
-The backend delivery path should stay lightweight:
+The backend delivery path should stay lightweight but fully automatic:
 - GitHub Actions runs CI for backend changes
-- GitHub Actions builds and publishes a Docker image to a registry
-- the QNAP host pulls the published image and restarts the stack with Docker Compose
+- pushes to `develop` build and publish the `dev` image
+- pushes to `main` build and publish the `stable` image
+- a self-hosted GitHub runner on the Ubuntu VM pulls the image and restarts the matching Docker Compose stack
 
-This keeps production close to local Docker usage while avoiding source builds on the NAS.
+This keeps production close to local Docker usage while avoiding source builds on the runtime host.
 
 ## Mobile application
 

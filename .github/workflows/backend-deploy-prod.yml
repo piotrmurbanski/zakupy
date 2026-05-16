@@ -1,0 +1,155 @@
+name: Backend Deploy Prod
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'infra/ubuntu/**'
+      - '.github/workflows/backend-*.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/zakupy-backend
+  DEPLOY_ROOT: /opt/zakupy
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://zakupy:zakupy@127.0.0.1:5432/zakupy
+          JWT_SECRET: ci-test-secret
+        run: npm test
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=stable
+            type=sha,prefix=stable-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          platforms: linux/amd64,linux/arm64/v8
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: publish
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - zakupy-deploy
+    environment: backend-prod
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: backend-prod-deploy
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render gateway env file
+        run: |
+          umask 077
+          cat > /tmp/zakupy-gateway.env <<EOF
+          COMPOSE_PROJECT_NAME=zakupy-gateway
+          CADDY_HTTP_PORT=${{ vars.CADDY_HTTP_PORT }}
+          DEV_HOSTNAME=${{ vars.DEV_HOSTNAME }}
+          PROD_HOSTNAME=${{ vars.PROD_HOSTNAME }}
+          EOF
+
+      - name: Render prod env file
+        run: |
+          umask 077
+          cat > /tmp/zakupy-prod.env <<EOF
+          COMPOSE_PROJECT_NAME=${{ vars.COMPOSE_PROJECT_NAME }}
+          POSTGRES_DB=${{ vars.POSTGRES_DB }}
+          POSTGRES_USER=${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:stable
+          SMTP_HOST=${{ vars.SMTP_HOST }}
+          SMTP_PORT=${{ vars.SMTP_PORT }}
+          SMTP_SECURE=${{ vars.SMTP_SECURE }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM=${{ vars.SMTP_FROM }}
+          EOF
+
+      - name: Deploy shared gateway
+        run: |
+          sh infra/ubuntu/scripts/deploy-stack.sh \
+            infra/ubuntu/gateway \
+            "${{ env.DEPLOY_ROOT }}/gateway" \
+            /tmp/zakupy-gateway.env \
+            zakupy-gateway
+
+      - name: Deploy prod stack
+        run: |
+          sh infra/ubuntu/scripts/deploy-stack.sh \
+            infra/ubuntu/prod \
+            "${{ env.DEPLOY_ROOT }}/prod" \
+            /tmp/zakupy-prod.env \
+            "${{ vars.COMPOSE_PROJECT_NAME }}"

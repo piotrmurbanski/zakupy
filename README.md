@@ -140,61 +140,35 @@ To już pokrywa obecna implementacja backendu i mobile. Następne rozsądne krok
 
 ## CI/CD backendu
 
-Repo zawiera teraz prosty flow pod QNAP:
+Repo jest teraz przygotowane pod w pełni automatyczny deployment na Ubuntu:
 - CI: [`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml)
-- publikacja obrazu: [`.github/workflows/backend-cd.yml`](.github/workflows/backend-cd.yml)
-- produkcyjny Compose dla NAS-a: [`infra/docker-compose.qnap.yml`](infra/docker-compose.qnap.yml)
-- instrukcja wdrożenia: [`docs/backend-cicd-qnap.md`](docs/backend-cicd-qnap.md)
+- auto deploy `develop -> dev`: [`.github/workflows/backend-deploy-dev.yml`](.github/workflows/backend-deploy-dev.yml)
+- auto deploy `main -> prod`: [`.github/workflows/backend-deploy-prod.yml`](.github/workflows/backend-deploy-prod.yml)
+- szablony Compose dla Ubuntu: [`infra/ubuntu/`](infra/ubuntu)
+- instrukcja wdrożenia: [`docs/backend-cicd-ubuntu.md`](docs/backend-cicd-ubuntu.md)
+
+Deploy jest wykonywany lokalnie na tym samym serwerze Ubuntu przez self-hosted GitHub runner, więc GitHub buduje i uruchamia wdrożenie, ale sam `docker compose` odpala się już wewnątrz Twojej prywatnej maszyny.
 
 Docelowy przepływ jest taki:
-1. pushujesz zmiany backendu na `main`
-2. GitHub Actions buduje i publikuje obraz do GHCR
-3. QNAP pobiera nowy obraz przez `sh scripts/deploy-backend.sh`
+1. pushujesz zmiany backendu na `develop`
+2. GitHub Actions buduje obraz `dev` i self-hosted runner na Ubuntu wdraża środowisko developerskie
+3. po weryfikacji mergujesz do `main`
+4. GitHub Actions buduje obraz `stable` i ten sam serwer Ubuntu wdraża produkcję
 
-To daje prosty, przewidywalny deployment bez budowania aplikacji na samym QNAP-ie.
-
-## Aktualizacja backendu na QNAP
-
-Najprostszy ręczny flow aktualizacji backendu:
-
-1. Skopiuj pliki z `infra/` na QNAP:
-
-```bash
-scp -r infra/* administrator@192.168.0.40:/share/Container/zakupy/infra/
-```
-
-2. Zaloguj się na serwer i przejdź do katalogu:
-
-```bash
-cd /share/Container/zakupy/infra
-```
-
-3. Przy pierwszym wdrożeniu albo po zmianach konfiguracji przygotuj i uzupełnij `qnap.backend.env` na bazie [infra/qnap.backend.env.example](infra/qnap.backend.env.example).
-
-Najważniejsze pola do ustawienia:
-- `POSTGRES_PASSWORD`
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `BACKEND_IMAGE`
-- ustawienia SMTP
-
-4. Uruchom deployment:
-
-```bash
-sh scripts/deploy-backend.sh
-```
-
-Ten skrypt używa `qnap.backend.env` oraz `docker-compose.qnap.yml` i podnosi backend, PostgreSQL i Caddy.
+To daje pełną automatyzację bez budowania backendu bezpośrednio na runtime host.
 
 ## Aktualizacja aplikacji mobilnej
 
-Na ten moment backend na QNAP jest dostępny pod:
+Po wdrożeniu nowego flow backend będzie zwykle dostępny pod dwoma adresami:
 
 ```text
-http://100.113.187.63
+http://dev-api.twoj-serwer.tailnet.ts.net
+http://api.twoj-serwer.tailnet.ts.net
 ```
 
-Przed buildem lub instalacją aplikacji ustaw ten adres przez `--dart-define=API_BASE_URL=...`.
+Przed buildem lub instalacją aplikacji ustaw właściwy adres przez `--dart-define=API_BASE_URL=...`.
+- buildy developerskie powinny wskazywać `dev`
+- buildy dla stabilnego użycia powinny wskazywać `prod`
 
 ### Android
 
@@ -203,14 +177,14 @@ Na podłączonym urządzeniu albo emulatorze:
 ```bash
 cd mobile
 flutter pub get
-flutter run --release -d <android-device-id> --dart-define=API_BASE_URL=http://100.113.187.63
+flutter run --release -d <android-device-id> --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
 ```
 
 Jeśli chcesz tylko zbudować paczkę:
 
 ```bash
 cd mobile
-flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
+flutter build apk --release --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
 ```
 
 Android release ma włączony `cleartext traffic`, żeby aplikacja mogła łączyć się z lokalnym backendem po `http://` podczas testów przez Tailscale. Jeśli później przejdziesz na HTTPS przez Caddy, ten wyjątek można z powrotem zawęzić albo usunąć.
@@ -240,13 +214,13 @@ cp android/key.properties.example android/key.properties
 4. Zbuduj podpisany APK:
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
+flutter build apk --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
 ```
 
 5. Albo zbuduj AAB pod Google Play:
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=http://100.113.187.63
+flutter build appbundle --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
 ```
 
 Konfiguracja Androida automatycznie użyje `android/key.properties`, jeśli plik istnieje. Jeśli go nie ma, `release` nadal zadziała na debug key tylko do testowej instalacji lokalnej.
@@ -258,20 +232,20 @@ Na iPhonie albo w symulatorze:
 ```bash
 cd mobile
 flutter pub get
-flutter run --release -d <ios-device-id> --dart-define=API_BASE_URL=http://100.113.187.63
+flutter run --release -d <ios-device-id> --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
 ```
 
 Jeśli potrzebujesz samego buildu:
 
 ```bash
 cd mobile
-flutter build ios --release --dart-define=API_BASE_URL=http://100.113.187.63
+flutter build ios --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
 ```
 
 Uwaga dla iPhone'a:
 - obecna konfiguracja iOS nie ma wyjątku ATS dla czystego `http`
 - na fizycznym iPhonie bezpieczniej używać adresu HTTPS przez Caddy albo Tailscale
-- `http://100.113.187.63` jest w praktyce najpewniejsze dla Androida i lokalnych testów developerskich
+- jeśli zostajesz przy HTTP, najłatwiej testować to na Androidzie albo w symulatorze iOS
 
 ## Codex run actions
 
@@ -281,7 +255,7 @@ Jeśli chcesz dodać w Codex gotowe akcje do buildów i deployów mobile, użyj 
 sh mobile/scripts/codex-mobile-action.sh <action>
 ```
 
-Gotowa rozpiska polecanych akcji i wymaganych zmiennych jest w [docs/codex-mobile-actions.md](/Users/piotr/sandbox/Zakupy/docs/codex-mobile-actions.md).
+Gotowa rozpiska polecanych akcji i wymaganych zmiennych jest w [docs/codex-mobile-actions.md](docs/codex-mobile-actions.md).
 
 ## Najbliższe kroki
 

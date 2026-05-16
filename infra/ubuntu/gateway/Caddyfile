@@ -1,0 +1,7 @@
+http://{$PROD_HOSTNAME} {
+  reverse_proxy zakupy-backend-prod:3000
+}
+
+http://{$DEV_HOSTNAME} {
+  reverse_proxy zakupy-backend-dev:3000
+}
