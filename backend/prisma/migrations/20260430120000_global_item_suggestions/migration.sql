@@ -26,7 +26,7 @@ INSERT INTO "item_suggestions_new" (
   "updated_at"
 )
 SELECT
-  md5(CONCAT("normalized_name", ':', "normalized_comment")),
+  md5(CONCAT(chosen."normalized_name", ':', chosen."normalized_comment")),
   chosen."name",
   chosen."normalized_name",
   chosen."comment",
