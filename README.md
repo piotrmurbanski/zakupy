@@ -159,16 +159,16 @@ To daje pełną automatyzację bez budowania backendu bezpośrednio na runtime h
 
 ## Aktualizacja aplikacji mobilnej
 
-Po wdrożeniu nowego flow backend będzie zwykle dostępny pod dwoma adresami:
+Po wdrożeniu nowego flow backend będzie zwykle dostępny pod jednym hostname Tailscale i dwoma portami:
 
 ```text
-http://dev-api.twoj-serwer.tailnet.ts.net
-http://api.twoj-serwer.tailnet.ts.net
+http://besztia.tail218f8.ts.net
+http://besztia.tail218f8.ts.net:8080
 ```
 
 Przed buildem lub instalacją aplikacji ustaw właściwy adres przez `--dart-define=API_BASE_URL=...`.
-- buildy developerskie powinny wskazywać `dev`
-- buildy dla stabilnego użycia powinny wskazywać `prod`
+- buildy developerskie powinny wskazywać `:8080`
+- buildy dla stabilnego użycia powinny wskazywać port `80`
 
 ### Android
 
@@ -177,14 +177,14 @@ Na podłączonym urządzeniu albo emulatorze:
 ```bash
 cd mobile
 flutter pub get
-flutter run --release -d <android-device-id> --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
+flutter run --release -d <android-device-id> --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net:8080
 ```
 
 Jeśli chcesz tylko zbudować paczkę:
 
 ```bash
 cd mobile
-flutter build apk --release --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
+flutter build apk --release --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net:8080
 ```
 
 Android release ma włączony `cleartext traffic`, żeby aplikacja mogła łączyć się z lokalnym backendem po `http://` podczas testów przez Tailscale. Jeśli później przejdziesz na HTTPS przez Caddy, ten wyjątek można z powrotem zawęzić albo usunąć.
@@ -214,13 +214,13 @@ cp android/key.properties.example android/key.properties
 4. Zbuduj podpisany APK:
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
+flutter build apk --release --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net
 ```
 
 5. Albo zbuduj AAB pod Google Play:
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
+flutter build appbundle --release --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net
 ```
 
 Konfiguracja Androida automatycznie użyje `android/key.properties`, jeśli plik istnieje. Jeśli go nie ma, `release` nadal zadziała na debug key tylko do testowej instalacji lokalnej.
@@ -232,14 +232,14 @@ Na iPhonie albo w symulatorze:
 ```bash
 cd mobile
 flutter pub get
-flutter run --release -d <ios-device-id> --dart-define=API_BASE_URL=http://dev-api.twoj-serwer.tailnet.ts.net
+flutter run --release -d <ios-device-id> --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net:8080
 ```
 
 Jeśli potrzebujesz samego buildu:
 
 ```bash
 cd mobile
-flutter build ios --release --dart-define=API_BASE_URL=http://api.twoj-serwer.tailnet.ts.net
+flutter build ios --release --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net
 ```
 
 Uwaga dla iPhone'a:

@@ -46,8 +46,8 @@ Extra variables for deploy/export actions:
 
 If `API_BASE_URL` is not set, the script should default to your active backend endpoint.
 For this repo, the recommended convention is:
-- `http://dev-api.twoj-serwer.tailnet.ts.net` for development installs
-- `http://api.twoj-serwer.tailnet.ts.net` for stable installs
+- `http://besztia.tail218f8.ts.net:8080` for development installs
+- `http://besztia.tail218f8.ts.net` for stable installs
 
 ## Notes by platform
 

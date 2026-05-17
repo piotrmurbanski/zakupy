@@ -1,7 +1,7 @@
-http://{$PROD_HOSTNAME} {
+http://{$TAILSCALE_HOSTNAME} {
   reverse_proxy zakupy-backend-prod:3000
 }
 
-http://{$DEV_HOSTNAME} {
+http://{$TAILSCALE_HOSTNAME}:{$CADDY_DEV_PORT} {
   reverse_proxy zakupy-backend-dev:3000
 }

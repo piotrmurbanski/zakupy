@@ -114,9 +114,9 @@ jobs:
           umask 077
           cat > /tmp/zakupy-gateway.env <<EOF
           COMPOSE_PROJECT_NAME=zakupy-gateway
+          TAILSCALE_HOSTNAME=${{ vars.TAILSCALE_HOSTNAME }}
           CADDY_HTTP_PORT=${{ vars.CADDY_HTTP_PORT }}
-          DEV_HOSTNAME=${{ vars.DEV_HOSTNAME }}
-          PROD_HOSTNAME=${{ vars.PROD_HOSTNAME }}
+          CADDY_DEV_PORT=${{ vars.CADDY_DEV_PORT }}
           EOF
 
       - name: Render prod env file

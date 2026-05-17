@@ -62,10 +62,11 @@ The workflows assume one Ubuntu server with these directories:
 
 The gateway is shared:
 - one Caddy container listening on port 80
+- the same Caddy container also listening on port 8080 for `dev`
 - one Docker network `zakupy-public`
-- host-based routing:
-  - `DEV_HOSTNAME` -> `zakupy-backend-dev`
-  - `PROD_HOSTNAME` -> `zakupy-backend-prod`
+- port-based routing on one Tailscale hostname:
+  - `http://TAILSCALE_HOSTNAME` -> `zakupy-backend-prod`
+  - `http://TAILSCALE_HOSTNAME:CADDY_DEV_PORT` -> `zakupy-backend-dev`
 
 The backend stacks are isolated:
 - separate PostgreSQL container per environment
@@ -118,14 +119,14 @@ sudo chown -R <runner-user>:<runner-user> /opt/zakupy
 
 Create these repository-level Variables:
 
-- `DEV_HOSTNAME`
-  example: `dev-api.twoj-serwer.tailnet.ts.net`
-- `PROD_HOSTNAME`
-  example: `api.twoj-serwer.tailnet.ts.net`
+- `TAILSCALE_HOSTNAME`
+  example: `besztia.tail218f8.ts.net`
 - `CADDY_HTTP_PORT`
   usually `80`
+- `CADDY_DEV_PORT`
+  usually `8080`
 
-These are shared by both deploy workflows because the same gateway routes both hostnames.
+These are shared by both deploy workflows because the same gateway routes both environments on one hostname.
 
 ### Environment: `backend-dev`
 
@@ -249,9 +250,9 @@ docker compose --project-name zakupy-prod --env-file /opt/zakupy/prod/.env -f /o
 
 ## Notes about HTTP vs HTTPS
 
-The included gateway uses plain HTTP hostnames on port 80:
-- `http://DEV_HOSTNAME`
-- `http://PROD_HOSTNAME`
+The included gateway uses plain HTTP on one Tailscale hostname:
+- `http://TAILSCALE_HOSTNAME` for `prod`
+- `http://TAILSCALE_HOSTNAME:CADDY_DEV_PORT` for `dev`
 
 This keeps the first self-hosted setup simple and avoids certificate automation assumptions.
 
@@ -262,6 +263,6 @@ If you later want HTTPS for physical iPhones, the next reasonable step is:
 ## Suggested mobile API base URLs
 
 - development mobile build:
-  `http://DEV_HOSTNAME`
+  `http://TAILSCALE_HOSTNAME:CADDY_DEV_PORT`
 - production mobile build:
-  `http://PROD_HOSTNAME`
+  `http://TAILSCALE_HOSTNAME`

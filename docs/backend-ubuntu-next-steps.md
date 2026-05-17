@@ -79,16 +79,16 @@ sh infra/ubuntu/scripts/deploy-from-checkout.sh prod /path/to/prod.env
 Repository `Settings -> Secrets and variables -> Actions -> Variables`
 
 Create:
-- `DEV_HOSTNAME`
-- `PROD_HOSTNAME`
+- `TAILSCALE_HOSTNAME`
 - `CADDY_HTTP_PORT`
+- `CADDY_DEV_PORT`
 
 Suggested values:
 
 ```text
-DEV_HOSTNAME=dev-api.twoj-serwer.tailnet.ts.net
-PROD_HOSTNAME=api.twoj-serwer.tailnet.ts.net
+TAILSCALE_HOSTNAME=besztia.tail218f8.ts.net
 CADDY_HTTP_PORT=80
+CADDY_DEV_PORT=8080
 ```
 
 ## Configure GitHub environments
@@ -135,7 +135,7 @@ Then verify:
 ```bash
 docker ps
 docker logs zakupy-backend-dev --tail 50
-curl http://dev-api.twoj-serwer.tailnet.ts.net/health
+curl http://besztia.tail218f8.ts.net:8080/health
 ```
 
 ### First prod deploy
@@ -150,5 +150,5 @@ Then verify:
 
 ```bash
 docker logs zakupy-backend-prod --tail 50
-curl http://api.twoj-serwer.tailnet.ts.net/health
+curl http://besztia.tail218f8.ts.net/health
 ```
