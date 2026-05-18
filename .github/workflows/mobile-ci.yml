@@ -1,24 +1,29 @@
 name: Mobile CI
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'mobile/**'
       - '.github/workflows/mobile-*.yml'
       - 'docs/codex-mobile-actions.md'
+      - 'mobile/README.md'
   push:
     branches:
+      - develop
       - main
     paths:
       - 'mobile/**'
       - '.github/workflows/mobile-*.yml'
       - 'docs/codex-mobile-actions.md'
+      - 'mobile/README.md'
 
 jobs:
-  mobile-test-and-android-build:
+  mobile-validate-and-android-build:
     runs-on: ubuntu-latest
     env:
       FLUTTER_BUILD_NUMBER: ${{ github.run_number }}
+      API_BASE_URL: http://besztia.tail218f8.ts.net:8080
 
     steps:
       - name: Check out repository
@@ -39,6 +44,10 @@ jobs:
       - name: Install Flutter dependencies
         run: sh mobile/scripts/codex-mobile-action.sh pub-get
 
+      - name: Run Flutter analyzer
+        run: flutter analyze
+        working-directory: mobile
+
       - name: Run Flutter tests
         run: flutter test
         working-directory: mobile
@@ -46,20 +55,21 @@ jobs:
       - name: Build Android APK
         run: sh mobile/scripts/codex-mobile-action.sh build-android-apk
 
-  mobile-ios-build:
-    runs-on: macos-latest
-    env:
-      FLUTTER_BUILD_NUMBER: ${{ github.run_number }}
+      - name: Build Android App Bundle
+        if: github.event_name != 'pull_request'
+        run: sh mobile/scripts/codex-mobile-action.sh build-android-aab
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          channel: stable
-          cache: true
+          name: android-apk-${{ github.ref_name }}
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
 
-      - name: Build iOS app without codesign
-        run: sh mobile/scripts/codex-mobile-action.sh build-ios
+      - name: Upload Android App Bundle artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-${{ github.ref_name }}
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

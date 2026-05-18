@@ -12,7 +12,7 @@ Ten katalog nie został wygenerowany przez `flutter create`, bo Flutter SDK nie 
 cd mobile
 flutter create .
 flutter pub get
-flutter run --dart-define=API_BASE_URL=https://twoj-host.tailnet.ts.net
+flutter run --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net:8080
 ```
 
 Po wygenerowaniu projektu:
@@ -27,6 +27,9 @@ Aplikacja zapisuje sesję lokalnie, więc po logowaniu nie trzeba ręcznie wklej
 Ważne dla testów na telefonach:
 - nie używaj `localhost` ani `127.0.0.1` dla backendu na fizycznym urządzeniu
 - użyj adresu Tailscale lub Caddy osiągalnego z telefonu
+- dla tego repo:
+  - `http://besztia.tail218f8.ts.net` wskazuje `prod`
+  - `http://besztia.tail218f8.ts.net:8080` wskazuje `dev`
 - najlepiej uruchamiaj backend po HTTPS, zwłaszcza na iPhone
 
 ## Android release signing
@@ -49,7 +52,7 @@ keytool -genkeypair -v \
   -validity 10000 \
   -alias zakupy-release
 cp android/key.properties.example android/key.properties
-flutter build apk --release --dart-define=API_BASE_URL=http://100.113.187.63
+flutter build apk --release --dart-define=API_BASE_URL=http://besztia.tail218f8.ts.net
 ```
 
 Jeśli docelowo chcesz wrzucać aplikację do Google Play, zbuduj `appbundle` zamiast `apk`.
